@@ -19,6 +19,7 @@ using System.Linq.Expressions;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver.Linq.Linq3Implementation.Ast.Optimizers;
+using MongoDB.Driver.Linq.Linq3Implementation.Ast.Stages;
 using MongoDB.Driver.Linq.Linq3Implementation.Misc;
 using MongoDB.Driver.Linq.Linq3Implementation.Translators;
 using MongoDB.Driver.Linq.Linq3Implementation.Translators.ExpressionToAggregationExpressionTranslators;
@@ -139,7 +140,7 @@ namespace MongoDB.Driver.Linq.Linq3Implementation
             Expression<Func<TSource, TProjection>> expression,
             IBsonSerializer<TSource> sourceSerializer,
             IBsonSerializerRegistry serializerRegistry)
-            => TranslateExpressionToProjectionInternal(expression, sourceSerializer, new AstFindProjectionSimplifier());
+            => TranslateExpressionToProjectionInternal(expression, sourceSerializer, new AstFindProjectionSimplifier(), ProjectionHelper.CreateFindProjection);
 
         internal override RenderedProjectionDefinition<TOutput> TranslateExpressionToGroupProjection<TInput, TKey, TOutput>(
             Expression<Func<TInput, TKey>> idExpression,
@@ -156,17 +157,18 @@ namespace MongoDB.Driver.Linq.Linq3Implementation
             IBsonSerializer<TInput> inputSerializer,
             IBsonSerializerRegistry serializerRegistry,
             ExpressionTranslationOptions translationOptions)
-            => TranslateExpressionToProjectionInternal(expression, inputSerializer, new AstSimplifier());
+            => TranslateExpressionToProjectionInternal(expression, inputSerializer, new AstSimplifier(), ProjectionHelper.CreateProjectStage);
 
         private RenderedProjectionDefinition<TOutput> TranslateExpressionToProjectionInternal<TInput, TOutput>(
             Expression<Func<TInput, TOutput>> expression,
             IBsonSerializer<TInput> inputSerializer,
-            AstSimplifier simplifier)
+            AstSimplifier simplifier,
+            Func<AggregationExpression, (AstProjectStage, IBsonSerializer)> projectionRenderer)
         {
             expression = (Expression<Func<TInput, TOutput>>)PartialEvaluator.EvaluatePartially(expression);
             var context = TranslationContext.Create(expression, inputSerializer);
             var translation = ExpressionToAggregationExpressionTranslator.TranslateLambdaBody(context, expression, inputSerializer, asRoot: true);
-            var (projectStage, projectionSerializer) = ProjectionHelper.CreateProjectStage(translation);
+            var (projectStage, projectionSerializer) = projectionRenderer(translation);
             var simplifiedProjectStage =  simplifier.Visit(projectStage);
             var renderedProjection = simplifiedProjectStage.Render().AsBsonDocument["$project"].AsBsonDocument;
 

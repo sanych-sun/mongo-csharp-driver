@@ -29,14 +29,21 @@ namespace MongoDB.Driver.Linq.Linq3Implementation.Misc
         // public static methods
         public static (AstProjectStage, IBsonSerializer) CreateProjectStage(AggregationExpression expression)
         {
-            if (expression.Ast.NodeType == AstNodeType.ComputedDocumentExpression)
+            return expression.Ast.NodeType switch
             {
-                return CreateComputedDocumentProjectStage(expression);
-            }
-            else
+                AstNodeType.ComputedDocumentExpression => CreateComputedDocumentProjectStage(expression),
+                _ => CreateWrappedValueProjectStage(expression)
+            };
+        }
+
+        public static (AstProjectStage, IBsonSerializer) CreateFindProjection(AggregationExpression expression)
+        {
+            return expression.Ast.NodeType switch
             {
-                return CreateWrappedValueProjectStage(expression);
-            }
+                AstNodeType.ComputedDocumentExpression => CreateComputedDocumentProjectStage(expression),
+                AstNodeType.GetFieldExpression => CreateFieldProjectStage(expression),
+                _ => CreateWrappedValueProjectStage(expression)
+            };
         }
 
         // private static methods
@@ -98,6 +105,27 @@ namespace MongoDB.Driver.Linq.Linq3Implementation.Misc
                     AstProject.ExcludeId());
 
             return (projectStage, wrappedValueSerializer);
+        }
+
+        private static (AstProjectStage, IBsonSerializer) CreateFieldProjectStage(AggregationExpression expression)
+        {
+            if (((AstGetFieldExpression)expression.Ast).HasSafeFieldName(out var fieldName))
+            {
+                var wrappedValueSerializer = WrappedValueSerializer.Create(fieldName, expression.Serializer);
+                AstProjectStage projectStage;
+                if (string.Equals(fieldName, "_id"))
+                {
+                    projectStage = AstStage.Project(AstProject.Include(fieldName));
+                }
+                else
+                {
+                    projectStage = AstStage.Project(AstProject.Include(fieldName), AstProject.ExcludeId());
+                }
+
+                return (projectStage, wrappedValueSerializer);
+            }
+
+            return CreateWrappedValueProjectStage(expression);
         }
     }
 }
