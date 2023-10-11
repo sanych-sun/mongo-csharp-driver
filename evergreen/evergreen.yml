@@ -112,12 +112,12 @@ functions:
       params:
         file: mongo-csharp-driver/expansion.yml
 
-  install-dotnet:
+  install-dependencies:
     - command: shell.exec
       params:
         script: |
           ${PREPARE_SHELL}
-          OS=${OS} sh ${PROJECT_DIRECTORY}/evergreen/install-dotnet.sh
+          OS=${OS} sh ${PROJECT_DIRECTORY}/evergreen/install-dependencies.sh
 
   prepare-resources:
     - command: shell.exec
@@ -2021,7 +2021,7 @@ task_groups:
       - func: prepare-resources
       - func: fix-absolute-paths
       - func: make-files-executable
-      - func: install-dotnet
+      - func: install-dependencies
     tasks:
       - packages-create
       - packages-push

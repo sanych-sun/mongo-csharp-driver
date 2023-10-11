@@ -1,0 +1,3 @@
+.manifest
+api/*.yml
+legacy-api/*.yml

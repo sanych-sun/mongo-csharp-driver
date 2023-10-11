@@ -1,0 +1,101 @@
+{
+    "metadata": [
+        {
+            "src": [
+                {
+                    "files": [
+                        "MongoDB.Bson/*.csproj",
+                        "MongoDB.Driver/*.csproj",
+                        "MongoDB.Driver.Core/*.csproj",
+                        "MongoDB.Driver.GridFS/*.csproj"
+                    ],
+                    "exclude": [
+                        "**/bin/**",
+                        "**/obj/**"
+                    ],
+                    "src": "../src"
+                }
+            ],
+            "dest": "api/",
+            "includePrivateMembers": false,
+            "disableGitFeatures": false,
+            "disableDefaultFilter": false,
+            "noRestore": false,
+            "namespaceLayout": "flattened",
+            "memberLayout": "samePage",
+            "EnumSortOrder": "declaringOrder",
+            "allowCompilationErrors": false
+        },
+        {
+            "src": [
+                {
+                    "files": [
+                        "MongoDB.Bson/*.csproj",
+                        "MongoDB.Driver.Legacy/*.csproj"
+                    ],
+                    "exclude": [
+                        "**/bin/**",
+                        "**/obj/**"
+                    ],
+                    "src": "../src"
+                }
+            ],
+            "dest": "legacy-api/",
+            "includePrivateMembers": false,
+            "disableGitFeatures": false,
+            "disableDefaultFilter": false,
+            "noRestore": false,
+            "namespaceLayout": "flattened",
+            "memberLayout": "samePage",
+            "EnumSortOrder": "declaringOrder",
+            "allowCompilationErrors": false
+        }
+    ],
+    "build": {
+        "content": [
+            {
+                "files": [
+                    "api/**.yml",
+                    "api/**.md"
+                ]
+            },
+            {
+                "files": [
+                    "legacy-api/**.yml",
+                    "legacy-api/**.md"
+                ],
+                "version": "legacy"
+            },
+            {
+                "files": [
+                    "index.md",
+                    "toc.yml"
+                ]
+            }
+        ],
+        "resource": [
+            {
+                "files": [
+                    "images/**"
+                ]
+            }
+        ],
+        "globalMetadataFiles": [],
+        "fileMetadataFiles": [],
+        "template": [
+            "default",
+            "modern",
+            "mongo-apidocs"
+        ],
+        "postProcessors": [],
+        "keepFileLink": false,
+        "disableGitFeatures": false,
+        "globalMetadata": {
+            "_appTitle": "MongoDB CSharp Driver API Reference",
+            "_appFooter": "&copy; 2023 MongoDB, Inc.",
+            "_appLogoPath": "images/mongodb-logo.svg",
+            "_appFaviconPath": "images/favicon.ico",
+            "_disableContribution": "true"
+        }
+    }
+}
