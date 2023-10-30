@@ -1,0 +1,22 @@
+title: ".NET Driver Version ${version} Release Notes"
+
+tag: v${version}
+
+base-filter: project = CSHARP AND fixVersion=${version}
+
+sections:
+  - "# .NET Driver Version ${version} Release Notes"
+  - This is the general availability release for the ${version} version of the driver.
+
+  - title: "The main new features in ${version} include:"
+    filter: issuetype='New Feature'
+    fields: ['summary']
+    template: + [${key}](https://jira.mongodb.org/browse/${key}) - ${summary}
+
+  - title: "## Bug fixes:"
+    filter: issuetype='Bug'
+    fields: ['summary']
+    template: + [${key}](https://jira.mongodb.org/browse/${key}) - ${summary}
+
+  - The full list of issues resolved in this release is available at [CSHARP JIRA project](https://jira.mongodb.org/issues/?jql=project%20%3D%20CSHARP%20AND%20fixVersion%20%3D%20${version}%20ORDER%20BY%20key%20ASC).
+  - Documentation on the .NET driver can be found [here](https://www.mongodb.com/docs/drivers/csharp/v${version}}/).
