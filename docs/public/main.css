@@ -3,15 +3,14 @@
     --bs-font-monospace: "Source Code Pro", Menlo, monospace;
 }
 
-h1 {
+h1, h2, h3 {
     font-family: 'MongoDB Value Serif','Times New Roman',serif;
-    font-size: 32px;
-    font-weight: 400;
-    line-height: 40px;
+    color: rgb(0, 104, 74);
+    font-weight: bold;
 }
 
-h1, h2, h3 {
-    color: rgb(0, 104, 74);
+dt {
+    font-weight: normal;
 }
 
 @font-face {

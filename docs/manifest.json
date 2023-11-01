@@ -3743,16 +3743,6 @@
       "version": ""
     },
     {
-      "type": "Redirection",
-      "source_relative_path": "api/MongoDB.Bson/MongoDB.md",
-      "output": {
-        ".html": {
-          "relative_path": "api/MongoDB.Bson/MongoDB.html"
-        }
-      },
-      "version": ""
-    },
-    {
       "type": "ManagedReference",
       "source_relative_path": "api/MongoDB.Driver.GridFS/MongoDB.Driver.GridFS.DelegatingStream.yml",
       "output": {
@@ -4008,16 +3998,6 @@
       "output": {
         ".html": {
           "relative_path": "api/MongoDB.Driver.GridFS/MongoDB.Driver.GridFS.html"
-        }
-      },
-      "version": ""
-    },
-    {
-      "type": "Redirection",
-      "source_relative_path": "api/MongoDB.Driver.GridFS/MongoDB.md",
-      "output": {
-        ".html": {
-          "relative_path": "api/MongoDB.Driver.GridFS/MongoDB.html"
         }
       },
       "version": ""
@@ -5901,16 +5881,6 @@
       "output": {
         ".html": {
           "relative_path": "api/MongoDB.Driver.Legacy/MongoDB.Driver.html"
-        }
-      },
-      "version": ""
-    },
-    {
-      "type": "Redirection",
-      "source_relative_path": "api/MongoDB.Driver.Legacy/MongoDB.md",
-      "output": {
-        ".html": {
-          "relative_path": "api/MongoDB.Driver.Legacy/MongoDB.html"
         }
       },
       "version": ""
@@ -14073,10 +14043,10 @@
     },
     {
       "type": "Redirection",
-      "source_relative_path": "api/MongoDB.Driver/MongoDB.md",
+      "source_relative_path": "api/MongoDB.md",
       "output": {
         ".html": {
-          "relative_path": "api/MongoDB.Driver/MongoDB.html"
+          "relative_path": "api/MongoDB.Bson/MongoDB.html"
         }
       },
       "version": ""
