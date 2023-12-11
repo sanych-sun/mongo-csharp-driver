@@ -6,15 +6,8 @@ base-filter: project = CSHARP AND fixVersion=${version}
 
 sections:
   - "# .NET Driver Version ${version} Release Notes"
-  - This is the general availability release for the ${version} version of the driver.
 
-  - title: "The main new features in ${version} include:"
-    filter: issuetype='New Feature' OR issuetype='Improvement'
-    fields: ['summary']
-    template: + ${summary} - [${key}](https://jira.mongodb.org/browse/${key})
-
-  - title: "## Bug fixes:"
-    filter: issuetype='Bug'
+  - title: "This is a patch release that contains fixes and stability improvements:"
     fields: ['summary']
     template: + ${summary} - [${key}](https://jira.mongodb.org/browse/${key})
 

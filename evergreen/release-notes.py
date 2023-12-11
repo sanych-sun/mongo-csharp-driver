@@ -1,13 +1,12 @@
+import os
 import yaml
 import requests
 import re
 import sys
 
-jira_base_url = 'https://jira.mongodb.org/'
-github_base_url = 'https://api.github.com/repos/'
-repo = 'sanych-sun/mongo-csharp-driver'
-github_api_key = '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'
+jira_base_url = os.getenv('JIRA_URL', 'https://jira.mongodb.org/')
 version = sys.argv[1]
+configPath = sys.argv[2]
 
 common_parameters = {"version": version}
 
@@ -39,7 +38,11 @@ def process_query_section(section):
     loaded_count = 0
     total_count = 1  # do not know yet, just set to any not-zero value to enter the loop
     fields = section["fields"]
-    jql = apply_template(config["base-filter"] + " AND " + section["filter"], common_parameters)
+    jql = config["base-filter"]
+    section_filter = section.get("filter","")
+    if section_filter != "":
+        jql = jql + " AND (" + section["filter"] + ")"
+    jql = apply_template(jql, common_parameters)
 
     while total_count > loaded_count:
         r = requests.post(search_url, json={"fields": fields,  "jql": jql,  "maxResults": 10,  "startAt": loaded_count})
@@ -74,6 +77,10 @@ def process_sections(section):
 
 
 def publish_release_notes(title, tag, content):
+    github_base_url = 'https://api.github.com/repos/'
+    repo = 'sanych-sun/mongo-csharp-driver'
+    github_api_key = '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'
+
     print("Publishing release notes...")
     url = '{base}{repo}/releases'.format(base=github_base_url, repo=repo)
     headers = {
@@ -98,7 +105,7 @@ def publish_release_notes(title, tag, content):
         raise SystemExit("Failed to create the release notes: ({code}) {reason}". format(code=r.status_code, reason=r.reason))
 
 
-config = load_config("./evergreen/release-notes.yml")
+config = load_config(configPath)
 
 print("Processing title...")
 release_title = apply_template(config["title"], common_parameters)
