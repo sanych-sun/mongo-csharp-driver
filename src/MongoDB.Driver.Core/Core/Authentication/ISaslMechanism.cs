@@ -1,6 +1,6 @@
 ﻿using MongoDB.Driver.Core.Connections;
 
-namespace MongoDB.Driver.Core.Authentication.Sasl
+namespace MongoDB.Driver.Core.Authentication
 {
     /// <summary>
     /// Represents a SASL mechanism.

@@ -1,4 +1,4 @@
-﻿namespace MongoDB.Driver.Core.Authentication.Sasl
+﻿namespace MongoDB.Driver.Core.Authentication
 {
     /// <summary>
     /// Represents a SASL step.

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using MongoDB.Driver.Core.Connections;
 using MongoDB.Driver.Core.Misc;
 
-namespace MongoDB.Driver.Core.Authentication.Sasl
+namespace MongoDB.Driver.Core.Authentication
 {
     /// <summary>
     /// Represents a SASL conversation.

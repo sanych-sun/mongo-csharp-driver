@@ -14,10 +14,8 @@
 */
 
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using DnsClient;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver.Core.Connections;
@@ -42,7 +40,7 @@ namespace MongoDB.Driver.Core.Authentication
         /// </summary>
         /// <param name="mechanism">The mechanism.</param>
         [Obsolete("Use the newest overload instead.")]
-        protected SaslAuthenticator(ISaslMechanism mechanism)
+        private protected SaslAuthenticator(ISaslMechanism mechanism)
             : this(mechanism, serverApi: null)
         {
         }
@@ -52,7 +50,7 @@ namespace MongoDB.Driver.Core.Authentication
         /// </summary>
         /// <param name="mechanism">The mechanism.</param>
         /// <param name="serverApi">The server API.</param>
-        protected SaslAuthenticator(ISaslMechanism mechanism, ServerApi serverApi)
+        private protected SaslAuthenticator(ISaslMechanism mechanism, ServerApi serverApi)
         {
             _mechanism = Ensure.IsNotNull(mechanism, nameof(mechanism));
             _serverApi = serverApi; // can be null
@@ -221,53 +219,6 @@ namespace MongoDB.Driver.Core.Authentication
 
             command = CreateContinueCommand(currentStep, result);
             return currentStep;
-        }
-
-
-        /// <summary>
-        /// Represents a completed SASL step.
-        /// </summary>
-        protected class CompletedStep : ISaslStep
-        {
-            // fields
-            private readonly byte[] _bytesToSendToServer;
-
-            // constructors
-            /// <summary>
-            /// Initializes a new instance of the <see cref="CompletedStep"/> class.
-            /// </summary>
-            public CompletedStep()
-                : this(new byte[0])
-            {
-            }
-
-            /// <summary>
-            /// Initializes a new instance of the <see cref="CompletedStep"/> class.
-            /// </summary>
-            /// <param name="bytesToSendToServer">The bytes to send to server.</param>
-            public CompletedStep(byte[] bytesToSendToServer)
-            {
-                _bytesToSendToServer = bytesToSendToServer;
-            }
-
-            // properties
-            /// <inheritdoc/>
-            public byte[] BytesToSendToServer
-            {
-                get { return _bytesToSendToServer; }
-            }
-
-            /// <inheritdoc/>
-            public bool IsComplete
-            {
-                get { return true; }
-            }
-
-            /// <inheritdoc/>
-            public ISaslStep Transition(SaslConversation conversation, byte[] bytesReceivedFromServer)
-            {
-                throw new InvalidOperationException("Sasl conversation has completed.");
-            }
         }
     }
 }
