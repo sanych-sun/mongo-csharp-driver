@@ -16,6 +16,8 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Driver.Core.Connections;
@@ -192,6 +194,13 @@ namespace MongoDB.Driver.Core.Authentication
                 return new ClientFirst(clientFirstMessageBytes, clientFirstMessageBare, _credential, r, _h, _hi, _hmac, _cache);
             }
 
+            public Task<ISaslStep> InitializeAsync(
+                IConnection connection,
+                SaslConversation conversation,
+                ConnectionDescription description,
+                CancellationToken cancellationToken)
+                => Task.FromResult(Initialize(connection, conversation, description));
+
             private string GenerateRandomString()
             {
                 const string legalCharacters = "!\"#$%&'()*+-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
@@ -292,6 +301,12 @@ namespace MongoDB.Driver.Core.Authentication
                 return new ClientLast(encoding.GetBytes(clientFinalMessage), serverSignature);
             }
 
+            public Task<ISaslStep> TransitionAsync(
+                SaslConversation conversation,
+                byte[] bytesReceivedFromServer,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult(Transition(conversation, bytesReceivedFromServer));
+
             private byte[] XOR(byte[] a, byte[] b)
             {
                 var result = new byte[a.Length];
@@ -330,8 +345,14 @@ namespace MongoDB.Driver.Core.Authentication
                     throw new MongoAuthenticationException(conversation.ConnectionId, message: "Server signature was invalid.");
                 }
 
-                return new CompletedStep();
+                return new CompletedSaslStep();
             }
+
+            public Task<ISaslStep> TransitionAsync(
+                SaslConversation conversation,
+                byte[] bytesReceivedFromServer,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult(Transition(conversation, bytesReceivedFromServer));
 
             private bool ConstantTimeEquals(byte[] a, byte[] b)
             {

@@ -159,7 +159,7 @@ namespace MongoDB.Driver.Core.Configuration
             // Connection
             if (connectionString.Username != null)
             {
-                var authenticatorFactory = new AuthenticatorFactory(() => CreateAuthenticator(connectionString, serverApi));
+                var authenticatorFactory = new AuthenticatorFactory((context) => CreateAuthenticator(connectionString, context, serverApi));
                 builder = builder.ConfigureConnection(s => s.With(authenticatorFactories: new[] { authenticatorFactory }));
             }
             if (connectionString.ApplicationName != null)
@@ -265,7 +265,8 @@ namespace MongoDB.Driver.Core.Configuration
         {
             var defaultSource = GetDefaultAuthSource(connectionString);
 
-            if (connectionString.AuthMechanism != null && connectionString.AuthMechanism == MongoAWSAuthenticator.MechanismName)
+            if (connectionString?.AuthMechanism == MongoAWSAuthenticator.MechanismName ||
+                connectionString?.AuthMechanism == MongoOidcAuthenticator.MechanismName)
             {
                 return connectionString.AuthSource ?? defaultSource;
             }
@@ -277,7 +278,8 @@ namespace MongoDB.Driver.Core.Configuration
         {
             if (connectionString.AuthMechanism != null && (
                 connectionString.AuthMechanism == GssapiAuthenticator.MechanismName ||
-                connectionString.AuthMechanism == MongoAWSAuthenticator.MechanismName))
+                connectionString.AuthMechanism == MongoAWSAuthenticator.MechanismName ||
+                connectionString.AuthMechanism == MongoOidcAuthenticator.MechanismName))
             {
                 return "$external";
             }
@@ -285,7 +287,7 @@ namespace MongoDB.Driver.Core.Configuration
             return "admin";
         }
 
-        private static IAuthenticator CreateAuthenticator(ConnectionString connectionString, ServerApi serverApi)
+        private static IAuthenticator CreateAuthenticator(ConnectionString connectionString, IAuthenticationContext context, ServerApi serverApi)
         {
             if (connectionString.Password != null)
             {
@@ -324,6 +326,10 @@ namespace MongoDB.Driver.Core.Configuration
                 {
                     return new MongoAWSAuthenticator(credential, connectionString.AuthMechanismProperties, serverApi);
                 }
+                else if (connectionString.AuthMechanism == MongoOidcAuthenticator.MechanismName)
+                {
+                    throw new NotSupportedException("OIDC authenticator cannot be constructed with password.");
+                }
             }
             else
             {
@@ -338,6 +344,10 @@ namespace MongoDB.Driver.Core.Configuration
                 else if (connectionString.AuthMechanism == MongoAWSAuthenticator.MechanismName)
                 {
                     return new MongoAWSAuthenticator(connectionString.Username, connectionString.AuthMechanismProperties, serverApi);
+                }
+                else if (connectionString.AuthMechanism == MongoOidcAuthenticator.MechanismName)
+                {
+                    return MongoOidcAuthenticator.CreateAuthenticator(connectionString.AuthSource, connectionString.Username, connectionString.AuthMechanismProperties, context, serverApi);
                 }
             }
 

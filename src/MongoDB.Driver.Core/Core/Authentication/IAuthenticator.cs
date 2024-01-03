@@ -56,5 +56,13 @@ namespace MongoDB.Driver.Core.Authentication
         /// <param name="helloCommand">Initial command.</param>
         /// <returns>Optionally mutated command.</returns>
         BsonDocument CustomizeInitialHelloCommand(BsonDocument helloCommand);
+
+        /// <summary>
+        /// Optionally customizes hello or legacy hello command.
+        /// </summary>
+        /// <param name="helloCommand">Initial command.</param>
+        /// <param name="cancellationToken">The cancellation token.</param>
+        /// <returns>Optionally mutated command.</returns>
+        Task<BsonDocument> CustomizeInitialHelloCommandAsync(BsonDocument helloCommand, CancellationToken cancellationToken);
     }
 }

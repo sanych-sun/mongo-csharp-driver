@@ -18,6 +18,8 @@ using System.Collections.Generic;
 using System.Net;
 using System.Security;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using MongoDB.Driver.Core.Connections;
 using MongoDB.Driver.Core.Misc;
 
@@ -229,17 +231,8 @@ namespace MongoDB.Driver.Core.Authentication
                 Ensure.IsNotNull(connection, nameof(connection));
                 Ensure.IsNotNull(description, nameof(description));
 
-                string hostName;
-                var dnsEndPoint = connection.EndPoint as DnsEndPoint;
-                if (dnsEndPoint != null)
-                {
-                    hostName = dnsEndPoint.Host;
-                }
-                else if (connection.EndPoint is IPEndPoint)
-                {
-                    hostName = ((IPEndPoint)connection.EndPoint).Address.ToString();
-                }
-                else
+                var hostName = connection.EndPoint.GetHostAndPort().Host;
+                if (string.IsNullOrEmpty(hostName))
                 {
                     throw new MongoAuthenticationException(connection.ConnectionId, "Only DnsEndPoint and IPEndPoint are supported for GSSAPI authentication.");
                 }
@@ -255,6 +248,13 @@ namespace MongoDB.Driver.Core.Authentication
 
                 return new FirstStep(_serviceName, hostName, _realm, _username, _password, conversation);
             }
+
+            public Task<ISaslStep> InitializeAsync(
+                IConnection connection,
+                SaslConversation conversation,
+                ConnectionDescription description,
+                CancellationToken cancellationToken)
+                => Task.FromResult(Initialize(connection, conversation, description));
         }
 
         private class FirstStep : ISaslStep
@@ -315,6 +315,12 @@ namespace MongoDB.Driver.Core.Authentication
 
                 return new NegotiateStep(_authorizationId, _context, bytesToSendToServer);
             }
+
+            public Task<ISaslStep> TransitionAsync(
+                SaslConversation conversation,
+                byte[] bytesReceivedFromServer,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult(Transition(conversation, bytesReceivedFromServer));
         }
 
         private class InitializeStep : ISaslStep
@@ -359,6 +365,12 @@ namespace MongoDB.Driver.Core.Authentication
 
                 return new NegotiateStep(_authorizationId, _context, bytesToSendToServer);
             }
+
+            public Task<ISaslStep> TransitionAsync(
+                SaslConversation conversation,
+                byte[] bytesReceivedFromServer,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult(Transition(conversation, bytesReceivedFromServer));
         }
 
         private class NegotiateStep : ISaslStep
@@ -425,8 +437,14 @@ namespace MongoDB.Driver.Core.Authentication
                     throw new MongoAuthenticationException(conversation.ConnectionId, "Unable to encrypt message.", ex);
                 }
 
-                return new CompletedStep(bytesToSendToServer);
+                return new CompletedSaslStep(bytesToSendToServer);
             }
+
+            public Task<ISaslStep> TransitionAsync(
+                SaslConversation conversation,
+                byte[] bytesReceivedFromServer,
+                CancellationToken cancellationToken = default)
+                => Task.FromResult(Transition(conversation, bytesReceivedFromServer));
         }
     }
 }

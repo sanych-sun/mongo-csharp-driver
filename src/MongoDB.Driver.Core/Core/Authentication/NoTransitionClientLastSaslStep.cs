@@ -5,43 +5,25 @@ using System.Threading.Tasks;
 namespace MongoDB.Driver.Core.Authentication
 {
     /// <summary>
-    /// Represents a completed SASL step.
+    /// Represents a last SASL step.
     /// </summary>
-    internal sealed class CompletedSaslStep : ISaslStep
+    internal sealed class NoTransitionClientLastSaslStep : ISaslStep
     {
-        // fields
         private readonly byte[] _bytesToSendToServer;
 
-        // constructors
         /// <summary>
-        /// Initializes a new instance of the <see cref="CompletedSaslStep"/> class.
+        /// Initializes a new instance of the <see cref="NoTransitionClientLastSaslStep"/> class.
         /// </summary>
-        public CompletedSaslStep()
-            : this(Array.Empty<byte>())
-        {
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="CompletedSaslStep"/> class.
-        /// </summary>
-        /// <param name="bytesToSendToServer">The bytes to send to server.</param>
-        public CompletedSaslStep(byte[] bytesToSendToServer)
+        public NoTransitionClientLastSaslStep(byte[] bytesToSendToServer)
         {
             _bytesToSendToServer = bytesToSendToServer;
         }
 
-        // properties
         /// <inheritdoc/>
-        public byte[] BytesToSendToServer
-        {
-            get { return _bytesToSendToServer; }
-        }
+        public byte[] BytesToSendToServer => _bytesToSendToServer;
 
         /// <inheritdoc/>
-        public bool IsComplete
-        {
-            get { return true; }
-        }
+        public bool IsComplete => false;
 
         /// <inheritdoc/>
         public ISaslStep Transition(SaslConversation conversation, byte[] bytesReceivedFromServer)
@@ -52,7 +34,7 @@ namespace MongoDB.Driver.Core.Authentication
                 throw new InvalidOperationException("Not all authentication response has been handled.");
             }
 
-            throw new InvalidOperationException("Sasl conversation has completed.");
+            return new CompletedSaslStep();
         }
 
         public Task<ISaslStep> TransitionAsync(

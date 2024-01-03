@@ -29,6 +29,15 @@ namespace MongoDB.Driver.Core.Authentication
     /// </summary>
     public abstract class SaslAuthenticator : IAuthenticator
     {
+        /// <summary>
+        /// The SASL start command.
+        /// </summary>
+        public const string SaslStartCommand = "saslStart";
+        /// <summary>
+        /// The SASL continue command.
+        /// </summary>
+        public const string SaslContinueCommand = "saslContinue";
+
         // fields
         private protected readonly ISaslMechanism _mechanism;
         private protected readonly ServerApi _serverApi;
@@ -155,6 +164,10 @@ namespace MongoDB.Driver.Core.Authentication
         {
             return helloCommand;
         }
+
+        /// <inheritdoc/>
+        public virtual Task<BsonDocument> CustomizeInitialHelloCommandAsync(BsonDocument helloCommand, CancellationToken cancellationToken)
+            => Task.FromResult(CustomizeInitialHelloCommand(helloCommand));
 
         private protected virtual BsonDocument CreateStartCommand(ISaslStep currentStep)
         {

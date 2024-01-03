@@ -23,21 +23,19 @@ namespace MongoDB.Driver.Core.Authentication
     /// </summary>
     public class AuthenticatorFactory : IAuthenticatorFactory
     {
-        private readonly Func<IAuthenticator> _authenticatorFactoryFunc;
+        private readonly Func<IAuthenticationContext, IAuthenticator> _authenticatorFactoryFunc;
 
         /// <summary>
         /// Create an authenticatorFactory.
         /// </summary>
         /// <param name="authenticatorFactoryFunc">The authenticatorFactoryFunc.</param>
-        public AuthenticatorFactory(Func<IAuthenticator> authenticatorFactoryFunc)
+        public AuthenticatorFactory(Func<IAuthenticationContext, IAuthenticator> authenticatorFactoryFunc)
         {
             _authenticatorFactoryFunc = Ensure.IsNotNull(authenticatorFactoryFunc, nameof(authenticatorFactoryFunc));
         }
 
         /// <inheritdoc/>
-        public IAuthenticator Create()
-        {
-            return _authenticatorFactoryFunc();
-        }
+        public IAuthenticator Create(IAuthenticationContext authenticationContext)
+            => _authenticatorFactoryFunc(authenticationContext);
     }
 }
