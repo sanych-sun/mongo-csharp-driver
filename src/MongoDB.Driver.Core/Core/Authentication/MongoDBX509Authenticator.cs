@@ -126,6 +126,10 @@ namespace MongoDB.Driver.Core.Authentication
             return helloCommand;
         }
 
+        /// <inheritdoc/>
+        public Task<BsonDocument> CustomizeInitialHelloCommandAsync(BsonDocument helloCommand, CancellationToken cancellationToken)
+            => Task.FromResult(CustomizeInitialHelloCommand(helloCommand));
+
         // private methods
 
         private BsonDocument CreateAuthenticateCommand()

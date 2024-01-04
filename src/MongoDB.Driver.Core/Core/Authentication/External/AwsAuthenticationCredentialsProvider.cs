@@ -43,6 +43,9 @@ namespace MongoDB.Driver.Core.Authentication.External
 
         public string AccessKeyId => _accessKeyId;
 
+        public string AccessToken
+            => throw new NotSupportedException("Oidc access token is not supported with AWS authentication."); // should not be reached
+
         /// <summary>
         /// Expiration and caching related logic happens on AWS.SDK side.
         /// </summary>

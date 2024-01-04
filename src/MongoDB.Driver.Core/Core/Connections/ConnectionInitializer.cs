@@ -188,7 +188,7 @@ namespace MongoDB.Driver.Core.Connections
             var result = new List<IAuthenticator>();
             for (int i = 0; i < authenticatorFactories.Count; i++)
             {
-                var previousAuthenticatorContext = (previousAuthenticators?.ElementAt(i) as IWithAuthenticationContext)?.AuthenticationContext;
+                var previousAuthenticatorContext = (previousAuthenticators?.ElementAt(i) as MongoOidcAuthenticator)?.AuthenticationContext;
                 var factory = authenticatorFactories[i];
                 var newAuthenticator = factory.Create(previousAuthenticatorContext ?? new AuthenticationContext(endPoint));
                 result.Add(newAuthenticator);

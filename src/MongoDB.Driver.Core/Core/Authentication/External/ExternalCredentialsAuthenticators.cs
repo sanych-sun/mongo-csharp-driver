@@ -27,26 +27,33 @@ namespace MongoDB.Driver.Core.Authentication.External
         #endregion
 
         private readonly IHttpClientWrapper _httpClientWrapper;
-        private readonly Lazy<IExternalAuthenticationCredentialsProvider<AwsCredentials>> _awsExternalAuthenticationCredentialsProvider;
+                private readonly Lazy<IExternalAuthenticationCredentialsProvider<AwsCredentials>> _awsExternalAuthenticationCredentialsProvider;
+        private readonly Lazy<IExternalAuthenticationCredentialsProvider<OidcCredentials>> _awsForOidcExternalAuthenticationCredentialsProvider;
         private readonly Lazy<IExternalAuthenticationCredentialsProvider<AzureCredentials>> _azureExternalAuthenticationCredentialsProvider;
         private readonly Lazy<IExternalAuthenticationCredentialsProvider<GcpCredentials>> _gcpExternalAuthenticationCredentialsProvider;
+        private readonly Lazy<IOidcProvidersCache> _oidcProvidersCache;
 
-        internal ExternalCredentialsAuthenticators() : this(new HttpClientWrapper())
+        internal ExternalCredentialsAuthenticators() : this(new HttpClientWrapper(), SystemClock.Instance, EnvironmentVariableProvider.Instance)
         {
         }
 
-        internal ExternalCredentialsAuthenticators(IHttpClientWrapper httpClientWrapper)
+        internal ExternalCredentialsAuthenticators(IHttpClientWrapper httpClientWrapper, IClock clock, IEnvironmentVariableProvider environmentVariableProvider)
         {
+            Ensure.IsNotNull(clock, nameof(clock));
             _httpClientWrapper = Ensure.IsNotNull(httpClientWrapper, nameof(httpClientWrapper));
             _awsExternalAuthenticationCredentialsProvider = new Lazy<IExternalAuthenticationCredentialsProvider<AwsCredentials>>(() => new AwsAuthenticationCredentialsProvider(), isThreadSafe: true);
+            _awsForOidcExternalAuthenticationCredentialsProvider = new Lazy<IExternalAuthenticationCredentialsProvider<OidcCredentials>>(() => FileOidcExternalAuthenticationCredentialsProvider.CreateProviderFromPathInEnvironmentVariable("AWS_WEB_IDENTITY_TOKEN_FILE", environmentVariableProvider), isThreadSafe: true);
             _azureExternalAuthenticationCredentialsProvider = new Lazy<IExternalAuthenticationCredentialsProvider<AzureCredentials>>(() => new CacheableCredentialsProvider<AzureCredentials>(new AzureAuthenticationCredentialsProvider(_httpClientWrapper)), isThreadSafe: true);
             _gcpExternalAuthenticationCredentialsProvider = new Lazy<IExternalAuthenticationCredentialsProvider<GcpCredentials>>(() => new GcpAuthenticationCredentialsProvider(_httpClientWrapper), isThreadSafe: true);
+            _oidcProvidersCache = new Lazy<IOidcProvidersCache>(() => new OidcProvidersCache(clock), isThreadSafe: true);
         }
 
+        // public properties
         public IExternalAuthenticationCredentialsProvider<AwsCredentials> Aws => _awsExternalAuthenticationCredentialsProvider.Value;
+        public IExternalAuthenticationCredentialsProvider<OidcCredentials> AwsForOidc => _awsForOidcExternalAuthenticationCredentialsProvider.Value;
         public IExternalAuthenticationCredentialsProvider<AzureCredentials> Azure => _azureExternalAuthenticationCredentialsProvider.Value;
         public IExternalAuthenticationCredentialsProvider<GcpCredentials> Gcp => _gcpExternalAuthenticationCredentialsProvider.Value;
-
+        public IOidcProvidersCache Oidc => _oidcProvidersCache.Value;
         internal IHttpClientWrapper HttpClientWrapper => _httpClientWrapper;
     }
 }
