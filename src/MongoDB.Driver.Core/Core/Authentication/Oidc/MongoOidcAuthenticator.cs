@@ -83,7 +83,7 @@ namespace MongoDB.Driver.Core.Authentication.Oidc
     /// <summary>
     /// The Mongo OIDC authenticator.
     /// </summary>
-    internal sealed class MongoOidcAuthenticator : SaslAuthenticator
+    internal sealed class MongoOidcAuthenticator : SaslAuthenticator, IWithAuthenticationContext
     {
         #region static
         public const string AllowedHostsMechanismPropertyName = "ALLOWED_HOSTS";
@@ -239,14 +239,13 @@ namespace MongoDB.Driver.Core.Authentication.Oidc
         }
         #endregion
 
-        private readonly new OidcSaslMechanism _mechanism;
+        private OidcSaslMechanism OidcMechanism => (OidcSaslMechanism)_mechanism;
 
         private MongoOidcAuthenticator(
             OidcSaslMechanism mechanism,
             ServerApi serverApi)
             : base(mechanism, serverApi)
         {
-            _mechanism = Ensure.IsNotNull(mechanism, nameof(mechanism));
         }
 
         /// <summary>
@@ -254,7 +253,7 @@ namespace MongoDB.Driver.Core.Authentication.Oidc
         /// </summary>
         public override string DatabaseName => "$external";
 
-        public IAuthenticationContext AuthenticationContext => _mechanism.AuthenticationContext;
+        public IAuthenticationContext AuthenticationContext => OidcMechanism.AuthenticationContext;
 
         /// <inheritdoc/>
         public override void Authenticate(IConnection connection, ConnectionDescription description, CancellationToken cancellationToken)
@@ -266,7 +265,7 @@ namespace MongoDB.Driver.Core.Authentication.Oidc
             catch (Exception ex)
             {
                 ClearCredentials();
-                if (_mechanism.ShouldReauthenticateIfSaslError(connection, ex))
+                if (OidcMechanism.ShouldReauthenticateIfSaslError(connection, ex))
                 {
                     base.Authenticate(connection, description, cancellationToken);
                 }
@@ -287,7 +286,7 @@ namespace MongoDB.Driver.Core.Authentication.Oidc
             catch (Exception ex)
             {
                 ClearCredentials();
-                if (_mechanism.ShouldReauthenticateIfSaslError(connection, ex))
+                if (OidcMechanism.ShouldReauthenticateIfSaslError(connection, ex))
                 {
                     await base.AuthenticateAsync(connection, description, cancellationToken).ConfigureAwait(false);
                 }
@@ -301,7 +300,7 @@ namespace MongoDB.Driver.Core.Authentication.Oidc
         /// <inheritdoc/>
         public BsonDocument CustomizeInitialHelloCommand(BsonDocument helloCommand, CancellationToken cancellationToken)
         {
-            _speculativeFirstStep = _mechanism.CreateSpeculativeAuthenticationSaslStep(cancellationToken);
+            _speculativeFirstStep = OidcMechanism.CreateSpeculativeAuthenticationSaslStep(cancellationToken);
             if (_speculativeFirstStep != null)
             {
                 var firstCommand = CreateStartCommand(_speculativeFirstStep);
@@ -329,6 +328,6 @@ namespace MongoDB.Driver.Core.Authentication.Oidc
         }
 
         // private methods
-        private void ClearCredentials() => _mechanism?.CredentialsCache.Clear();
+        private void ClearCredentials() => OidcMechanism?.CredentialsCache.Clear();
     }
 }
