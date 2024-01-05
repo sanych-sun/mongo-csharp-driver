@@ -22,6 +22,7 @@ using MongoDB.Driver.Core.Clusters;
 using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Core.Connections;
 using MongoDB.Driver.Core.Events;
+using MongoDB.Driver.Core.Helpers;
 using MongoDB.Driver.Core.Misc;
 using MongoDB.Driver.Core.Servers;
 using MongoDB.Driver.Core.WireProtocol.Messages;
@@ -29,7 +30,7 @@ using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 
 namespace MongoDB.Driver.Core.TestHelpers
 {
-    public class MockConnection : IConnection
+    public class MockConnection : IConnectionHandle
     {
         // fields
         private ConnectionId _connectionId;
@@ -82,6 +83,8 @@ namespace MongoDB.Driver.Core.TestHelpers
         }
 
         // properties
+        public int ActionsLength => _replyActions.Count;
+
         public ConnectionId ConnectionId
         {
             get { return _connectionId; }
@@ -157,9 +160,20 @@ namespace MongoDB.Driver.Core.TestHelpers
             _closedEventHandler?.Invoke(new ConnectionClosedEvent(_connectionId, TimeSpan.Zero, EventContext.OperationId));
         }
 
+        public void EnqueueCommandResponseMessage(Func<Task<MongoDBMessage>> func)
+        {
+            _replyActions.Enqueue(new ActionQueueItem(() => func()));
+        }
+
         public void EnqueueCommandResponseMessage(Exception exception)
         {
             _replyActions.Enqueue(new ActionQueueItem(message: null, exception: exception));
+        }
+
+        public void EnqueueCommandResponseMessage(string replyMessage)
+        {
+            var builtMessage = MessageHelper.BuildCommandResponse(replyMessage);
+            EnqueueCommandResponseMessage(builtMessage);
         }
 
         public void EnqueueCommandResponseMessage(CommandResponseMessage replyMessage)
@@ -182,7 +196,7 @@ namespace MongoDB.Driver.Core.TestHelpers
             _replyActions.Enqueue(new ActionQueueItem(replyMessage));
         }
 
-        public IConnection Fork()
+        public IConnectionHandle Fork()
         {
             return this;
         }

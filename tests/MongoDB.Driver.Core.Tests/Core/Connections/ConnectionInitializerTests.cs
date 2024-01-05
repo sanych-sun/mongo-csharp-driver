@@ -15,8 +15,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using MongoDB.Bson;
 using MongoDB.Bson.TestHelpers;
@@ -200,7 +202,7 @@ namespace MongoDB.Driver.Core.Connections
             var credentials = new UsernamePasswordCredential(
                 source: "Voyager", username: "Seven of Nine", password: "Omega-Phi-9-3");
             var authenticator = CreateAuthenticator(authenticatorType, credentials);
-            var connectionSettings = new ConnectionSettings(new[] { new AuthenticatorFactory(() => authenticator) });
+            var connectionSettings = new ConnectionSettings(new[] { new AuthenticatorFactory(c => authenticator) });
             var connection = new MockConnection(__serverId, connectionSettings, eventSubscriber: null);
             connection.EnqueueReplyMessage(legacyHelloReply);
 
@@ -379,6 +381,61 @@ namespace MongoDB.Driver.Core.Connections
             sentMessages[1]["opcode"].AsString.Should().Be("opmsg");
         }
 
+                [Theory]
+        [ParameterAttributeData]
+        public async Task Reauthenticate_should_create_a_new_authenticator(
+            [Values(false, true)] bool async)
+        {
+            var legacyHelloReply = MessageHelper.BuildReply<RawBsonDocument>(
+                RawBsonDocumentHelper.FromJson($"{{ ok : 1, maxWireVersion : {WireVersion.Server70} }}"));
+            var gleReply = MessageHelper.BuildReply<RawBsonDocument>(
+                RawBsonDocumentHelper.FromJson("{ ok: 1, connectionId: 10 }"));
+
+            var authenticator = CreateAuthenticator("DUMMY", credentials: null);
+            var connection = new MockConnection(__serverId, new ConnectionSettings(new[] { new AuthenticatorFactory((context) => authenticator) }), eventSubscriber: null);
+            connection.IsInitialized = false;
+            connection.EnqueueReplyMessage(legacyHelloReply);
+            connection.EnqueueReplyMessage(gleReply);
+
+            var subject = CreateSubject();
+            ConnectionInitializerContext connectionInitializerContext;
+            ConnectionDescription connectionDescription;
+            if (async)
+            {
+                connectionInitializerContext = await subject.SendHelloAsync(connection, CancellationToken.None);
+                connectionInitializerContext = await subject.AuthenticateAsync(connection, connectionInitializerContext, CancellationToken.None);
+            }
+            else
+            {
+                connectionInitializerContext = subject.SendHello(connection, CancellationToken.None);
+                connectionInitializerContext = subject.Authenticate(connection, connectionInitializerContext, CancellationToken.None);
+            }
+            var context1 = (DummyAuthenticationContext)(connectionInitializerContext.Authenticators.Single() as IWithAuthenticationContext).AuthenticationContext;
+            connectionDescription = connectionInitializerContext.Description;
+            connectionDescription.MaxWireVersion.Should().Be(21);
+            connectionDescription.ConnectionId.LongServerValue.Should().Be(10);
+
+            connection.IsInitialized = true;
+            var initialAuthenticators = connectionInitializerContext.Authenticators;
+            var reauthenticatedContext = async
+                ? await subject.AuthenticateAsync(connection, connectionInitializerContext, CancellationToken.None)
+                : subject.Authenticate(connection, connectionInitializerContext, CancellationToken.None);
+
+            reauthenticatedContext.Description.Should().Be(connectionDescription);
+            var context2 = (DummyAuthenticationContext)(reauthenticatedContext.Authenticators.Single() as IWithAuthenticationContext).AuthenticationContext;
+            reauthenticatedContext.Authenticators.Should().NotBeSameAs(initialAuthenticators);
+
+            var reauthenticatedContext2 = async
+                ? await subject.AuthenticateAsync(connection, reauthenticatedContext, CancellationToken.None)
+                : subject.Authenticate(connection, reauthenticatedContext, CancellationToken.None);
+
+            reauthenticatedContext2.Description.Should().Be(connectionDescription).And.Subject.Should().Be(reauthenticatedContext.Description);
+            var context3 = (DummyAuthenticationContext)(reauthenticatedContext2.Authenticators.Single() as IWithAuthenticationContext).AuthenticationContext;
+            reauthenticatedContext2.Authenticators.Should().NotBeSameAs(initialAuthenticators).And.Subject.Should().NotBeSameAs(reauthenticatedContext.Authenticators);
+
+            context2.CreatedAt.Should().BeGreaterThan(context1.CreatedAt).And.BeLessThan(context3.CreatedAt);
+        }
+
         // private methods
         private IAuthenticator CreateAuthenticator(string authenticatorType, UsernamePasswordCredential credentials)
         {
@@ -417,6 +474,13 @@ namespace MongoDB.Driver.Core.Connections
                 connection.Description = connectionInitializerContext.Description;
                 return connectionInitializer.Authenticate(connection, connectionInitializerContext, cancellationToken);
             }
+        }
+
+        private class DummyAuthenticationContext : IAuthenticationContext
+        {
+            private static int __counter;
+            public EndPoint CurrentEndPoint => __serverId.EndPoint;
+            public int CreatedAt { get; } = Interlocked.Increment(ref __counter);
         }
     }
 
