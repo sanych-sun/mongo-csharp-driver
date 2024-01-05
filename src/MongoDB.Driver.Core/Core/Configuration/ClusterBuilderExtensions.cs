@@ -20,6 +20,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using MongoDB.Driver.Core.Authentication;
+using MongoDB.Driver.Core.Authentication.Oidc;
 using MongoDB.Driver.Core.Clusters;
 using MongoDB.Driver.Core.Events.Diagnostics;
 using MongoDB.Driver.Core.Misc;

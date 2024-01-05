@@ -35,6 +35,7 @@ namespace MongoDB.Driver.Core.TestHelpers
         private ConnectionId _connectionId;
         private readonly ConnectionSettings _connectionSettings;
         private bool? _isExpired;
+        private bool? _isInitialized;
         private readonly TaskCompletionSource<bool> _isExpiredTaskComletionSource;
         private DateTime _lastUsedAtUtc;
         private DateTime _openedAtUtc;
@@ -138,6 +139,12 @@ namespace MongoDB.Driver.Core.TestHelpers
             set => _isExpired = value;
         }
 
+        public bool IsInitialized
+        {
+            get => _isInitialized ?? Description?.ConnectionId?.LongServerValue.HasValue ?? true;
+            set => _isInitialized = value;
+        }
+
         public ConnectionSettings Settings => _connectionSettings;
 
         public bool? WasReadTimeoutChanged => _wasReadTimeoutChanged;
@@ -195,6 +202,7 @@ namespace MongoDB.Driver.Core.TestHelpers
             _lastUsedAtUtc = DateTime.UtcNow;
 
             _openedEventHandler?.Invoke(new ConnectionOpenedEvent(_connectionId, _connectionSettings, TimeSpan.Zero, null));
+            _isInitialized = true;
         }
 
         public Task OpenAsync(CancellationToken cancellationToken)
@@ -208,25 +216,30 @@ namespace MongoDB.Driver.Core.TestHelpers
 
             _openedEventHandler?.Invoke(new ConnectionOpenedEvent(_connectionId, _connectionSettings, TimeSpan.Zero, null));
 
-            return Task.FromResult<object>(null);
+            _isInitialized = true;
+            return Task.CompletedTask;
+        }
+
+        public void Reauthenticate(CancellationToken cancellationToken)
+        {
+            _replyActions.Dequeue().GetEffectiveMessage();
+        }
+
+        public async Task ReauthenticateAsync(CancellationToken cancellationToken)
+        {
+            await _replyActions.Dequeue().GetEffectiveMessageAsync().ConfigureAwait(false);
         }
 
         public ResponseMessage ReceiveMessage(int responseTo, IMessageEncoderSelector encoderSelector, MessageEncoderSettings messageEncoderSettings, CancellationToken cancellationToken)
         {
             var action = _replyActions.Dequeue();
-            action.ThrowIfException();
-            var message = (ResponseMessage)action.Message;
-            action.DelayIfRequired();
-            return message;
+            return (ResponseMessage)action.GetEffectiveMessage();
         }
 
         public async Task<ResponseMessage> ReceiveMessageAsync(int responseTo, IMessageEncoderSelector encoderSelector, MessageEncoderSettings messageEncoderSettings, CancellationToken cancellationToken)
         {
             var action = _replyActions.Dequeue();
-            action.ThrowIfException();
-            var message = (ResponseMessage)action.Message;
-            await action.DelayIfRequiredAsync().ConfigureAwait(false);
-            return message;
+            return (ResponseMessage)await action.GetEffectiveMessageAsync().ConfigureAwait(false);
         }
 
         public void SendMessages(IEnumerable<RequestMessage> messages, MessageEncoderSettings messageEncoderSettings, CancellationToken cancellationToken)
@@ -248,6 +261,11 @@ namespace MongoDB.Driver.Core.TestHelpers
         // nested type
         private class ActionQueueItem
         {
+            public ActionQueueItem(Func<Task<MongoDBMessage>> funcAsync)
+            {
+                FuncAsync = funcAsync;
+            }
+
             public ActionQueueItem(MongoDBMessage message, Exception exception = null, TimeSpan? delay = null)
             {
                 Ensure.That(
@@ -260,11 +278,40 @@ namespace MongoDB.Driver.Core.TestHelpers
                 Delay = delay;
             }
 
+            public Func<Task<MongoDBMessage>> FuncAsync { get; }
             public MongoDBMessage Message { get; }
             public Exception Exception { get; }
             public TimeSpan? Delay { get; }
 
-            public void ThrowIfException()
+            public MongoDBMessage GetEffectiveMessage()
+            {
+                if (FuncAsync != null)
+                {
+                    return FuncAsync().GetAwaiter().GetResult();
+                }
+                else
+                {
+                    ThrowIfException();
+                    DelayIfRequired();
+                    return Message;
+                }
+            }
+
+            public async Task<MongoDBMessage> GetEffectiveMessageAsync()
+            {
+                if (FuncAsync != null)
+                {
+                    return await FuncAsync().ConfigureAwait(false);
+                }
+                else
+                {
+                    ThrowIfException();
+                    await DelayIfRequiredAsync().ConfigureAwait(false);
+                    return Message;
+                }
+            }
+
+            private void ThrowIfException()
             {
                 if (Exception != null)
                 {
@@ -272,7 +319,7 @@ namespace MongoDB.Driver.Core.TestHelpers
                 }
             }
 
-            public void DelayIfRequired()
+            private void DelayIfRequired()
             {
                 if (Delay.HasValue)
                 {
@@ -280,7 +327,7 @@ namespace MongoDB.Driver.Core.TestHelpers
                 }
             }
 
-            public async Task DelayIfRequiredAsync()
+            private async Task DelayIfRequiredAsync()
             {
                 if (Delay.HasValue)
                 {

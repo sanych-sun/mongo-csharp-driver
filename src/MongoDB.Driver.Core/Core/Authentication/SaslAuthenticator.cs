@@ -67,10 +67,7 @@ namespace MongoDB.Driver.Core.Authentication
 
         // properties
         /// <inheritdoc/>
-        public string Name
-        {
-            get { return _mechanism.Name; }
-        }
+        public string Name => _mechanism.Name;
 
         /// <summary>
         /// Gets the name of the database.
@@ -90,32 +87,34 @@ namespace MongoDB.Driver.Core.Authentication
             using (var conversation = new SaslConversation(description.ConnectionId))
             {
                 ISaslStep currentStep;
-                BsonDocument command;
-                var speculativeAuthenticateResult = description.HelloResult.SpeculativeAuthenticate;
-                if (_speculativeFirstStep != null && speculativeAuthenticateResult != null)
+                BsonDocument result = null;
+
+                if (TrySkipSaslStart(description, out currentStep, out result))
                 {
-                    currentStep = Transition(conversation, _speculativeFirstStep, speculativeAuthenticateResult, out command);
+                    currentStep = Transition(conversation, currentStep, result);
                 }
                 else
                 {
                     currentStep = _mechanism.Initialize(connection, conversation, description);
-                    command = CreateStartCommand(currentStep);
                 }
 
                 while (currentStep != null)
                 {
-                    BsonDocument result;
+                    var command = result == null
+                        ? CreateStartCommand(currentStep)
+                        : CreateContinueCommand(currentStep, result);
                     try
                     {
                         var protocol = CreateCommandProtocol(command);
+
                         result = protocol.Execute(connection, cancellationToken);
                     }
                     catch (MongoException ex)
                     {
-                        throw CreateException(connection, ex);
+                        throw CreateException(connection.ConnectionId, ex, command);
                     }
 
-                    currentStep = Transition(conversation, currentStep, result, out command);
+                    currentStep = Transition(conversation, currentStep, result);
                 }
             }
         }
@@ -129,21 +128,22 @@ namespace MongoDB.Driver.Core.Authentication
             using (var conversation = new SaslConversation(description.ConnectionId))
             {
                 ISaslStep currentStep;
-                BsonDocument command;
-                var speculativeAuthenticateResult = description.HelloResult.SpeculativeAuthenticate;
-                if (_speculativeFirstStep != null && speculativeAuthenticateResult != null)
+                BsonDocument result = null;
+
+                if (TrySkipSaslStart(description, out currentStep, out result))
                 {
-                    currentStep = Transition(conversation, _speculativeFirstStep, speculativeAuthenticateResult, out command);
+                    currentStep = await TransitionAsync(conversation, currentStep, result, cancellationToken).ConfigureAwait(false);
                 }
                 else
                 {
-                    currentStep = _mechanism.Initialize(connection, conversation, description);
-                    command = CreateStartCommand(currentStep);
+                    currentStep = await _mechanism.InitializeAsync(connection, conversation, description, cancellationToken).ConfigureAwait(false);
                 }
 
                 while (currentStep != null)
                 {
-                    BsonDocument result;
+                    var command = result == null
+                        ? CreateStartCommand(currentStep)
+                        : CreateContinueCommand(currentStep, result);
                     try
                     {
                         var protocol = CreateCommandProtocol(command);
@@ -151,86 +151,123 @@ namespace MongoDB.Driver.Core.Authentication
                     }
                     catch (MongoException ex)
                     {
-                        throw CreateException(connection, ex);
+                        throw CreateException(connection.ConnectionId, ex, command);
                     }
 
-                    currentStep = Transition(conversation, currentStep, result, out command);
+                    currentStep = await TransitionAsync(conversation, currentStep, result, cancellationToken).ConfigureAwait(false);
                 }
             }
         }
 
         /// <inheritdoc/>
         public virtual BsonDocument CustomizeInitialHelloCommand(BsonDocument helloCommand)
-        {
-            return helloCommand;
-        }
+            => helloCommand;
 
         /// <inheritdoc/>
         public virtual Task<BsonDocument> CustomizeInitialHelloCommandAsync(BsonDocument helloCommand, CancellationToken cancellationToken)
             => Task.FromResult(CustomizeInitialHelloCommand(helloCommand));
 
-        private protected virtual BsonDocument CreateStartCommand(ISaslStep currentStep)
+        /// <summary>
+        /// Determines whether saslStart should be skipped.
+        /// </summary>
+        /// <param name="description">The connection description.</param>
+        /// <param name="firstStep">The first sasl step.</param>
+        /// <param name="result">The result.</param>
+        /// <returns>A flag whether saslStart command can be skipped.</returns>
+        private protected bool TrySkipSaslStart(ConnectionDescription description, out ISaslStep firstStep, out BsonDocument result)
         {
-            var startCommand = new BsonDocument
+            var speculativeAuthenticateResult = description.HelloResult.SpeculativeAuthenticate;
+            if (_speculativeFirstStep != null && speculativeAuthenticateResult != null)
             {
-                { "saslStart", 1 },
-                { "mechanism", _mechanism.Name },
-                { "payload", currentStep.BytesToSendToServer }
-            };
+                result = speculativeAuthenticateResult;
+                firstStep = _speculativeFirstStep;
+                return true;
+            }
+            else
+            {
+                result = null;
+                firstStep = null;
+                return false;
+            }
+        }
 
-            return startCommand;
+        private protected virtual MongoAuthenticationException CreateException(ConnectionId connectionId, Exception ex, BsonDocument command)
+        {
+            // Do NOT echo the full command into exception message
+            var message = $"Unable to authenticate using sasl protocol mechanism {Name}.";
+            return new MongoAuthenticationException(connectionId, message, ex);
         }
 
         private CommandWireProtocol<BsonDocument> CreateCommandProtocol(BsonDocument command)
-        {
-            return new CommandWireProtocol<BsonDocument>(
+            => new CommandWireProtocol<BsonDocument>(
                 databaseNamespace: new DatabaseNamespace(DatabaseName),
                 command: command,
                 secondaryOk: true,
                 resultSerializer: BsonDocumentSerializer.Instance,
                 messageEncoderSettings: null,
                 serverApi: _serverApi);
-        }
+
+        private protected virtual BsonDocument CreateStartCommand(ISaslStep currentStep)
+            => new BsonDocument
+            {
+                { SaslStartCommand, 1 },
+                { "mechanism", _mechanism.Name },
+                { "payload", currentStep.BytesToSendToServer }
+            };
+
 
         private BsonDocument CreateContinueCommand(ISaslStep currentStep, BsonDocument result)
-        {
-            return new BsonDocument
+            => new BsonDocument
             {
-                { "saslContinue", 1 },
+                { SaslContinueCommand, 1 },
                 { "conversationId", result["conversationId"].AsInt32 },
                 { "payload", currentStep.BytesToSendToServer }
             };
-        }
 
-        private MongoAuthenticationException CreateException(IConnection connection, Exception ex)
-        {
-            var message = string.Format("Unable to authenticate using sasl protocol mechanism {0}.", Name);
-            return new MongoAuthenticationException(connection.ConnectionId, message, ex);
-        }
+        private bool IsCompleted(ISaslStep currentStep, BsonDocument result) => currentStep.IsComplete && result.GetValue("done", false).ToBoolean();
 
         private ISaslStep Transition(
             SaslConversation conversation,
             ISaslStep currentStep,
-            BsonDocument result,
-            out BsonDocument command)
+            BsonDocument result)
         {
             // we might be done here if the client is not expecting a reply from the server
-            if (result.GetValue("done", false).ToBoolean() && currentStep.IsComplete)
+            if (IsCompleted(currentStep, result))
             {
-                command = null;
                 return null;
             }
 
             currentStep = currentStep.Transition(conversation, result["payload"].AsByteArray);
 
             // we might be done here if the client had some final verification it needed to do
-            if (result.GetValue("done", false).ToBoolean() && currentStep.IsComplete)
+            if (IsCompleted(currentStep, result))
             {
-                command = null;
                 return null;
             }
 
-            command = CreateContinueCommand(currentStep, result);
+            return currentStep;
+        }
+
+        private async Task<ISaslStep> TransitionAsync(
+            SaslConversation conversation,
+            ISaslStep currentStep,
+            BsonDocument result,
+            CancellationToken cancellationToken)
+        {
+            // we might be done here if the client is not expecting a reply from the server
+            if (IsCompleted(currentStep, result))
+            {
+                return null;
+            }
+
+            currentStep = await currentStep.TransitionAsync(conversation, result["payload"].AsByteArray, cancellationToken).ConfigureAwait(false);
+
+            // we might be done here if the client had some final verification it needed to do
+            if (IsCompleted(currentStep, result))
+            {
+                return null;
+            }
+
             return currentStep;
         }
     }

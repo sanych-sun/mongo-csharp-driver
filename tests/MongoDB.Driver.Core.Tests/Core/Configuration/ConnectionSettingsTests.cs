@@ -105,7 +105,7 @@ namespace MongoDB.Driver.Core.Configuration
         [Fact]
         public void constructor_with_authenticatorFactories_should_initialize_instance()
         {
-            var authenticatorFactories = new[] { new AuthenticatorFactory(() => null) };
+            var authenticatorFactories = new[] { new AuthenticatorFactory(c => null) };
 
             var subject = new ConnectionSettings(authenticatorFactories: authenticatorFactories);
 
@@ -195,8 +195,8 @@ namespace MongoDB.Driver.Core.Configuration
         [Fact]
         public void With_authenticatorFactories_should_return_expected_result()
         {
-            var oldAuthenticatorFactories = new[] { new AuthenticatorFactory(() => null) };
-            var newAuthenticatorFactories = new[] { new AuthenticatorFactory(() => null) };
+            var oldAuthenticatorFactories = new[] { new AuthenticatorFactory(c => null) };
+            var newAuthenticatorFactories = new[] { new AuthenticatorFactory(c => null) };
 
             var subject = new ConnectionSettings(authenticatorFactories: oldAuthenticatorFactories);
 

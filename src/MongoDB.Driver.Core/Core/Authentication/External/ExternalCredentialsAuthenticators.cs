@@ -14,11 +14,21 @@
 */
 
 using System;
+using MongoDB.Driver.Core.Authentication.Oidc;
 using MongoDB.Driver.Core.Misc;
 
 namespace MongoDB.Driver.Core.Authentication.External
 {
-    internal sealed class ExternalCredentialsAuthenticators
+    internal interface IExternalCredentialsAuthenticators
+    {
+        IExternalAuthenticationCredentialsProvider<AwsCredentials> Aws { get; }
+        IExternalAuthenticationCredentialsProvider<OidcCredentials> AwsForOidc { get; }
+        IExternalAuthenticationCredentialsProvider<AzureCredentials> Azure { get; }
+        IExternalAuthenticationCredentialsProvider<GcpCredentials> Gcp { get; }
+        IOidcProvidersCache Oidc { get; }
+    }
+
+    internal sealed class ExternalCredentialsAuthenticators : IExternalCredentialsAuthenticators
     {
         #region static
         private static Lazy<ExternalCredentialsAuthenticators> __instance = new Lazy<ExternalCredentialsAuthenticators>(() => new ExternalCredentialsAuthenticators(), isThreadSafe: true);

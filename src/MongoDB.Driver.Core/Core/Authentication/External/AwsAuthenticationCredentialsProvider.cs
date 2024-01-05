@@ -67,6 +67,8 @@ namespace MongoDB.Driver.Core.Authentication.External
     {
         private readonly object _lock = new object();
 
+        public AwsCredentials CachedCredentials => throw new NotSupportedException("The cache logic is done on Aws.SDK side. Use CreateCredentialsFromExternalSource instead.");
+
         public void Clear()
         {
             lock (_lock)
