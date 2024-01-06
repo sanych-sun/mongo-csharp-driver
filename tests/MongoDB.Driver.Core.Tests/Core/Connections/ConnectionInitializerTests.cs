@@ -359,7 +359,7 @@ namespace MongoDB.Driver.Core.Connections
             var credentials = new UsernamePasswordCredential(
                 source: "Voyager", username: "Seven of Nine", password: "Omega-Phi-9-3");
             var authenticator = CreateAuthenticator("default", credentials);
-            var connectionSettings = new ConnectionSettings(new[] { new AuthenticatorFactory(() => authenticator) });
+            var connectionSettings = new ConnectionSettings(new[] { new AuthenticatorFactory(c => authenticator) });
             var connection = new MockConnection(__serverId, connectionSettings, eventSubscriber: null);
             connection.EnqueueReplyMessage(legacyHelloReply);
 
@@ -466,14 +466,28 @@ namespace MongoDB.Driver.Core.Connections
             {
                 connectionInitializerContext = connectionInitializer.SendHelloAsync(connection, cancellationToken).GetAwaiter().GetResult();
                 connection.Description = connectionInitializerContext.Description;
-                return connectionInitializer.AuthenticateAsync(connection, connectionInitializerContext, cancellationToken).GetAwaiter().GetResult();
+                return connectionInitializer.AuthenticateAsync(connection, connectionInitializerContext, cancellationToken).GetAwaiter().GetResult().Description;
             }
             else
             {
                 connectionInitializerContext = connectionInitializer.SendHello(connection, cancellationToken);
                 connection.Description = connectionInitializerContext.Description;
-                return connectionInitializer.Authenticate(connection, connectionInitializerContext, cancellationToken);
+                return connectionInitializer.Authenticate(connection, connectionInitializerContext, cancellationToken).Description;
             }
+        }
+
+        private class DummyAuthenticator : IAuthenticator, IWithAuthenticationContext
+        {
+            public string Name => "DUMMY";
+
+            public IAuthenticationContext AuthenticationContext => new DummyAuthenticationContext();
+
+            public void Authenticate(IConnection connection, ConnectionDescription description, CancellationToken cancellationToken)
+            {
+            }
+            public Task AuthenticateAsync(IConnection connection, ConnectionDescription description, CancellationToken cancellationToken) => Task.CompletedTask;
+            public BsonDocument CustomizeInitialHelloCommand(BsonDocument helloCommand) => new BsonDocument();
+            public Task<BsonDocument> CustomizeInitialHelloCommandAsync(BsonDocument helloCommand, CancellationToken cancellationToken) => Task.FromResult(new BsonDocument());
         }
 
         private class DummyAuthenticationContext : IAuthenticationContext

@@ -31,6 +31,13 @@ namespace MongoDB.Driver.Core.Authentication
     public sealed class GssapiAuthenticator : SaslAuthenticator
     {
         // constants
+        /// <summary>
+        /// Gets the name of the mechanism.
+        /// </summary>
+        /// <value>
+        /// The name of the mechanism.
+        /// </value>
+        public const string MechanismName = "GSSAPI";
         private const string __canonicalizeHostNamePropertyName = "CANONICALIZE_HOST_NAME";
         private const string __realmPropertyName = "REALM";
         private const string __serviceNamePropertyName = "SERVICE_NAME";
@@ -57,17 +64,6 @@ namespace MongoDB.Driver.Core.Authentication
         public static string DefaultServiceName
         {
             get { return "mongodb"; }
-        }
-
-        /// <summary>
-        /// Gets the name of the mechanism.
-        /// </summary>
-        /// <value>
-        /// The name of the mechanism.
-        /// </value>
-        public static string MechanismName
-        {
-            get { return "GSSAPI"; }
         }
 
         /// <summary>

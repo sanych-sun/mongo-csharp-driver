@@ -185,7 +185,7 @@ namespace MongoDB.Driver.Core.Connections
                 subject.Open(CancellationToken.None);
             }
 
-            authenticatorFactoryMock.Verify(f => f.Create(), Times.Once());
+            authenticatorFactoryMock.Verify(f => f.Create(It.IsAny<IAuthenticationContext>()), Times.Once());
 
             ResponseMessage CreateResponseMessage()
             {

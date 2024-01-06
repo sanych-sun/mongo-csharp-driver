@@ -21,6 +21,7 @@ using FluentAssertions;
 using MongoDB.Driver.Core.Clusters;
 using MongoDB.Driver.Core.Connections;
 using MongoDB.Driver.Core.Servers;
+using MongoDB.TestHelpers.XunitExtensions;
 using Xunit;
 
 namespace MongoDB.Driver
@@ -51,8 +52,9 @@ namespace MongoDB.Driver
             subject.Message.Should().BeSameAs(_message);
         }
 
-        [Fact]
-        public void Serialization_should_work()
+        [Theory]
+        [ParameterAttributeData]
+        public void Serialization_should_work([Values(false, true)] bool allowReauthentication)
         {
             var subject = new MongoAuthenticationException(_connectionId, _message, _innerException);
 
@@ -68,6 +70,7 @@ namespace MongoDB.Driver
                 rehydrated.ConnectionId.Should().Be(subject.ConnectionId);
                 rehydrated.Message.Should().Be(subject.Message);
                 rehydrated.InnerException.Message.Should().Be(subject.InnerException.Message); // Exception does not override Equals
+                rehydrated.AllowReauthentication.Should().Be(allowReauthentication);
             }
         }
     }

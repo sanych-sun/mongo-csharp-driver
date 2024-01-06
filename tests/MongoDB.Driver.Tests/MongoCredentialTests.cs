@@ -13,8 +13,16 @@
 * limitations under the License.
 */
 
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using FluentAssertions;
+using MongoDB.Bson;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Authentication.Oidc;
+using MongoDB.Driver.Core.TestHelpers.Authentication;
+using MongoDB.TestHelpers.XunitExtensions;
 using Xunit;
 
 namespace MongoDB.Driver.Tests
@@ -48,6 +56,76 @@ namespace MongoDB.Driver.Tests
             Assert.Equal("MONGODB-X509", credential.Mechanism);
             Assert.Equal(null, credential.Username);
             Assert.IsType<ExternalEvidence>(credential.Evidence);
+        }
+
+        [Theory]
+        [ParameterAttributeData]
+        public void CreateOidcCredential_should_initialize_all_required_properties_in_callback_mode(
+            [Values(false, true)] bool withRefreshCallbackProvider,
+            [Values(false, true)] bool async)
+        {
+            const string principalName = "principalName";
+            const string allowedHost = "allowedHost";
+            var requestTokenSyncDocument = new BsonDocument("requestSync", 1);
+            var requestTokenAsyncDocument = new BsonDocument("requestAsync", 1);
+            var refreshTokenSyncDocument = new BsonDocument("refreshSync", 1);
+            var refreshTokenAsyncDocument = new BsonDocument("refreshAsync", 1);
+            OidcTokenRequestCallback requestFunc = (a, ct) => requestTokenSyncDocument;
+            OidcTokenRefreshCallback refreshFunc = (a, b, ct) => refreshTokenSyncDocument;
+
+            var credential = MongoCredential.CreateOidcCredential(
+                requestCallbackProvider: (RequestCallbackProvider)GetCallbackProvider(isRequest: true),
+                refreshCallbackProvider: withRefreshCallbackProvider ? (RefreshCallbackProvider)GetCallbackProvider(isRequest: false) : null,
+                principalName,
+                allowedHosts: new[] { allowedHost });
+
+            credential.Mechanism.Should().Be("MONGODB-OIDC");
+            credential.Username.Should().Be(principalName);
+            credential.Evidence.Should().BeOfType<ExternalEvidence>();
+
+            var dummyDocument = new BsonDocument();
+            var requestProvider = credential.GetMechanismProperty<IOidcRequestCallbackProvider>(MongoOidcAuthenticator.RequestCallbackMechanismPropertyName, defaultValue: null)
+                .Should().BeOfType<RequestCallbackProvider>().Subject;
+            requestProvider.GetTokenResult(dummyDocument, CancellationToken.None).Should().Be(async ? null : requestTokenSyncDocument);
+            requestProvider.GetTokenResultAsync(dummyDocument, CancellationToken.None)?.GetAwaiter().GetResult().Should().Be(async ? requestTokenAsyncDocument : null);
+            var refreshProvider = credential.GetMechanismProperty<IOidcRefreshCallbackProvider>(MongoOidcAuthenticator.RefreshCallbackMechanismPropertyName, defaultValue: null);
+            if (withRefreshCallbackProvider)
+            {
+                string refreshToken = "dummyRefreshToken";
+                refreshProvider.Should().BeOfType<RefreshCallbackProvider>();
+                refreshProvider.GetTokenResult(dummyDocument, new OidcRefreshParameters(refreshToken), CancellationToken.None).Should().Be(async ? null : refreshTokenSyncDocument);
+                refreshProvider.GetTokenResultAsync(dummyDocument, new OidcRefreshParameters(refreshToken), CancellationToken.None)?.GetAwaiter().GetResult().Should().Be(async ? refreshTokenAsyncDocument : null);
+            }
+            else
+            {
+                refreshProvider.Should().BeNull();
+            }
+            credential.GetMechanismProperty<IEnumerable<string>>(MongoOidcAuthenticator.AllowedHostsMechanismPropertyName, defaultValue: null)
+                .Should().BeAssignableTo<IEnumerable<string>>().Subject.Single()
+                .Should().Be(allowedHost);
+
+            object GetCallbackProvider(bool isRequest) =>
+                isRequest
+                    ? async
+                        ? new RequestCallbackProvider(requestCallbackFunc: null, requestCallbackAsyncFunc: (a, ct) => Task.Run(() => requestTokenAsyncDocument), autoGenerateMissedCallback: false)
+                        : new RequestCallbackProvider((a, ct) => requestTokenSyncDocument, autoGenerateMissedCallback: false)
+                    : async
+                        ? new RefreshCallbackProvider(refreshCallbackFunc: null, refreshCallbackAsyncFunc: (a, b, ct) => Task.Run(() => refreshTokenAsyncDocument), autoGenerateMissedCallback: false)
+                        : new RefreshCallbackProvider((a, b, ct) => refreshTokenSyncDocument, autoGenerateMissedCallback: false);
+        }
+
+        [Fact]
+        public void CreateOidcCredential_should_initialize_all_required_properties_in_provider_mode()
+        {
+            const string providerName = "providerName";
+            var credential = MongoCredential.CreateOidcCredential(providerName);
+
+            credential.Mechanism.Should().Be("MONGODB-OIDC");
+            credential.Username.Should().BeNull();
+            credential.Evidence.Should().BeOfType<ExternalEvidence>();
+            credential.GetMechanismProperty<string>(MongoOidcAuthenticator.ProviderMechanismPropertyName, defaultValue: null)
+                .Should().BeOfType<string>().Subject
+                .Should().Be(providerName);
         }
 
         [Fact]
