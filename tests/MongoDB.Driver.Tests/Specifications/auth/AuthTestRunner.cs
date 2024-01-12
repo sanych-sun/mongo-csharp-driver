@@ -19,7 +19,6 @@ using System.Linq;
 using System.Net;
 using FluentAssertions;
 using MongoDB.Bson;
-using MongoDB.Bson.TestHelpers;
 using MongoDB.Bson.TestHelpers.JsonDrivenTests;
 using MongoDB.Driver.Core.Authentication;
 using MongoDB.Driver.Core.Authentication.External;
@@ -27,6 +26,8 @@ using MongoDB.Driver.Core.Authentication.Oidc;
 using MongoDB.TestHelpers.XunitExtensions;
 using Moq;
 using Xunit;
+using Xunit.Sdk;
+using Reflector = MongoDB.Bson.TestHelpers.Reflector;
 
 namespace MongoDB.Driver.Tests.Specifications.auth
 {
@@ -47,9 +48,16 @@ namespace MongoDB.Driver.Tests.Specifications.auth
 
             MongoCredential mongoCredential = null;
             Exception parseException = null;
+
+            var connectionString = (string)definition["uri"];
+            if (connectionString.Contains("CANONICALIZE_HOST_NAME"))
+            {
+                // have to skip CANONICALIZE_HOST_NAME tests. Not implemented yet. See: https://jira.mongodb.org/browse/CSHARP-3796
+                throw new SkipException("Test skipped because CANONICALIZE_HOST_NAME is not supported.");
+            }
+
             try
             {
-                var connectionString = (string)definition["uri"];
                 mongoCredential = MongoClientSettings.FromConnectionString(connectionString).Credential;
                 if (definition.TryGetValue("callback", out var callbacks))
                 {
@@ -226,7 +234,7 @@ namespace MongoDB.Driver.Tests.Specifications.auth
         // nested types
         private class TestCaseFactory : JsonDrivenTestCaseFactory
         {
-            protected override string PathPrefix => "MongoDB.Driver.Tests.Specifications.auth.tests.";
+            protected override string PathPrefix => "MongoDB.Driver.Tests.Specifications.auth.tests.legacy";
         }
     }
 
