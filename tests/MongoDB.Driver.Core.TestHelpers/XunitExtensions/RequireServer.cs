@@ -292,7 +292,11 @@ namespace MongoDB.Driver.Core.TestHelpers.XunitExtensions
             return requirements.All(IsRequirementSatisfied);
         }
 
-        private bool IsAuthenticated() => CoreTestConfiguration.ConnectionString.Username != null;
+        private bool IsAuthenticated()
+        {
+            return CoreTestConfiguration.ConnectionString.Username != null
+                   || CoreTestConfiguration.ConnectionString.AuthMechanism != null;
+        }
 
         private bool IsRequirementSatisfied(BsonElement requirement)
         {

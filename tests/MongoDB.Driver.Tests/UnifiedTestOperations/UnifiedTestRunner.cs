@@ -127,7 +127,7 @@ namespace MongoDB.Driver.Tests.UnifiedTestOperations
                 throw new SkipException($"Test skipped because '{skipReason}'.");
             }
 
-            KillOpenTransactions(DriverTestConfiguration.Client);
+            // KillOpenTransactions(DriverTestConfiguration.Client);
 
             _entityMap = UnifiedEntityMap.Create(_eventFormatters, _loggingService.LoggingSettings, async);
             _entityMap.AddRange(entities);

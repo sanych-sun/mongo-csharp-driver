@@ -43,8 +43,8 @@ namespace MongoDB.Driver.Tests.Communication.Security
     public class OidcAuthenticationProseTests : LoggableTestClass
     {
         // some auth configuration may support only this name
-        private const string DatabaseName = "test";
-        private const string CollectionName = "coll";
+        private const string DatabaseName = "db";
+        private const string CollectionName = "collName";
 
         private const string ExpiredTokenNamePrefix = "_expires";
         private const string SecondaryPreferedConnectionStringSuffix = "&readPreference=secondaryPreferred";
@@ -85,19 +85,17 @@ namespace MongoDB.Driver.Tests.Communication.Security
         public async Task Oidc_authentication_should_correctly_handle_Multiple_Principals(
             [Values(
                 // Multiple Principal User 1
-                $"test_user1#mongodb://test_user1@localhost:27018/?authMechanism=MONGODB-OIDC{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
+                $"test_user1#mongodb://test_user1@localhost:27017/?authMechanism=MONGODB-OIDC{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
                 // Multiple Principal User 2
-                $"test_user2#mongodb://test_user2@localhost:27018/?authMechanism=MONGODB-OIDC{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
+                $"test_user2#mongodb://test_user2@localhost:27017/?authMechanism=MONGODB-OIDC{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
 
                 // AWS Automatic Auth
                 // Single Principal
                 $"test_user1#mongodb://localhost/?authMechanism=MONGODB-OIDC&authMechanismProperties=PROVIDER_NAME:aws{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
                 // Multiple Principal User 1
-                $"test_user1#mongodb://localhost:27018/?authMechanism=MONGODB-OIDC&authMechanismProperties=PROVIDER_NAME:aws{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
+                $"test_user1#mongodb://localhost:27017/?authMechanism=MONGODB-OIDC&authMechanismProperties=PROVIDER_NAME:aws{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
                 // Multiple Principal User 2
-                $"test_user2#mongodb://localhost:27018/?authMechanism=MONGODB-OIDC&authMechanismProperties=PROVIDER_NAME:aws{DirectConnectionSecondaryPreferedConnectionStringSuffix}",
-                // Multiple Principal No User
-                $"#mongodb://localhost:27018/?authMechanism=MONGODB-OIDC{DirectConnectionSecondaryPreferedConnectionStringSuffix}"
+                $"test_user2#mongodb://localhost:27017/?authMechanism=MONGODB-OIDC&authMechanismProperties=PROVIDER_NAME:aws{DirectConnectionSecondaryPreferedConnectionStringSuffix}"
             )] string connectionDetails,
             [Values(false, true)] bool async)
         {
@@ -119,15 +117,13 @@ namespace MongoDB.Driver.Tests.Communication.Security
                 }
                 else
                 {
-                    var enviromentVariableName = "AWS_WEB_IDENTITY_TOKEN_FILE";
-                    RequireEnvironment.Check().EnvironmentVariable(enviromentVariableName);
-                    var expectedTokenPath = Path.Combine(Path.GetDirectoryName(Environment.GetEnvironmentVariable(enviromentVariableName)), tokenName);
-                    Ensure.That(File.Exists(expectedTokenPath), $"OIDC token {expectedTokenPath} doesn't exist.");
-                    disposableEnvironmentVariable = new DisposableEnvironmentVariable(
-                        name: enviromentVariableName,
-                        value: expectedTokenPath);
+                    var tokenFilePath = GetTokenPath(tokenName);
 
-                    _ = JwtHelper.GetValidTokenOrThrow(GetTokenPath(tokenName));
+                    disposableEnvironmentVariable = new DisposableEnvironmentVariable(
+                        name: "AWS_WEB_IDENTITY_TOKEN_FILE",
+                        value: tokenFilePath);
+
+                    _ = JwtHelper.GetValidTokenOrThrow(tokenFilePath);
                     settings.Credential = MongoCredential.CreateOidcCredential(providerName: providerName);
                 }
 
@@ -904,9 +900,13 @@ namespace MongoDB.Driver.Tests.Communication.Security
         private string GetTokenPath(string tokenName = DefaultTokenName, bool allowExpired = true)
         {
             tokenName = allowExpired ? tokenName : tokenName.Replace(ExpiredTokenNamePrefix, "");
-            return Path.Combine(
-                Environment.GetEnvironmentVariable("OIDC_TOKEN_DIR"),
-                tokenName);
+
+            var environmentVariableName = "OIDC_TOKEN_DIR";
+            RequireEnvironment.Check().EnvironmentVariable(environmentVariableName);
+            var tokenPath = Path.Combine(Environment.GetEnvironmentVariable(environmentVariableName), tokenName);
+            Ensure.That(File.Exists(tokenPath), $"OIDC token {tokenPath} doesn't exist.");
+
+            return tokenPath;
         }
     }
 }
