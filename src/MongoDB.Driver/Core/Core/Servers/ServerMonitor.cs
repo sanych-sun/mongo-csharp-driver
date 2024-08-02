@@ -153,10 +153,7 @@ namespace MongoDB.Driver.Core.Servers
 
                 _monitorCancellationTokenSource.Cancel();
                 _monitorCancellationTokenSource.Dispose();
-                if (_connection != null)
-                {
-                    _connection.Dispose();
-                }
+                _connection?.Dispose();
                 _roundTripTimeMonitor.Dispose();
 
                 _logger?.LogDebug(_serverId, "Disposed");

@@ -442,7 +442,7 @@ namespace MongoDB.Driver.Core.Connections
                         return _dropbox.RemoveMessage(responseTo); // also propagates exception if any
                     }
 
-                    receiveLockRequest.Task.GetAwaiter().GetResult(); // propagate exceptions
+                    await receiveLockRequest.Task.ConfigureAwait(false);
                     while (true)
                     {
                         try
