@@ -28,7 +28,7 @@ using MongoDB.Driver.Core.Events;
 using MongoDB.Driver.Core.Logging;
 using MongoDB.Driver.Core.Misc;
 using MongoDB.Driver.Core.Servers;
-using MongoDB.Libmongocrypt;
+using MongoDB.Driver.Encryption;
 
 namespace MongoDB.Driver.Core.Clusters
 {
@@ -37,7 +37,7 @@ namespace MongoDB.Driver.Core.Clusters
         private readonly IClusterClock _clusterClock;
         private readonly ClusterId _clusterId;
         private readonly ClusterType _clusterType = ClusterType.LoadBalanced;
-        private CryptClient _cryptClient = null;
+        private ICryptClient _cryptClient = null;
         private ClusterDescription _description;
         private readonly IDnsMonitorFactory _dnsMonitorFactory;
         private Thread _dnsMonitorThread;
@@ -112,7 +112,7 @@ namespace MongoDB.Driver.Core.Clusters
         }
 
         public ClusterId ClusterId => _clusterId;
-        public CryptClient CryptClient => _cryptClient;
+        public ICryptClient CryptClient => _cryptClient;
 
         public ClusterDescription Description => _description;
 
@@ -166,7 +166,7 @@ namespace MongoDB.Driver.Core.Clusters
 
                 if (_settings.CryptClientSettings != null)
                 {
-                    _cryptClient = CryptClientCreator.CreateCryptClient(_settings.CryptClientSettings);
+                    _cryptClient = AutoEncryptionProvider.Instance.CreateCryptClient(_settings.CryptClientSettings);
                 }
 
                 var endPoint = _settings.EndPoints.Single();
