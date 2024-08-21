@@ -24,13 +24,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
+using MongoDB.Driver;
 using MongoDB.Driver.Authentication.External;
 using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Core.Connections;
 using MongoDB.Driver.Core.Misc;
 using MongoDB.Libmongocrypt;
 
-namespace MongoDB.Driver.Encryption
+namespace MongoDB.Libmongocrypt
 {
     internal abstract class LibMongoCryptControllerBase
     {
@@ -47,12 +48,12 @@ namespace MongoDB.Driver.Encryption
 
         // constructors
         protected LibMongoCryptControllerBase(
-             CryptClient cryptClient,
+             ICryptClient cryptClient,
              IMongoClient keyVaultClient,
              IEncryptionOptions encryptionOptions)
         {
-            Ensure.IsNotNull(encryptionOptions, nameof(encryptionOptions));
-            _cryptClient = Ensure.IsNotNull(cryptClient, nameof(cryptClient));
+            Ensure.IsNotNull<IEncryptionOptions>(encryptionOptions, nameof(encryptionOptions));
+            _cryptClient = Ensure.IsNotNull(cryptClient, nameof(cryptClient)) as CryptClient;
             _keyVaultClient = Ensure.IsNotNull(keyVaultClient, nameof(keyVaultClient)); // _keyVaultClient might not be fully constructed at this point, don't call any instance methods on it yet
             _keyVaultNamespace = Ensure.IsNotNull(encryptionOptions.KeyVaultNamespace, nameof(encryptionOptions.KeyVaultNamespace));
             _keyVaultCollection = new Lazy<IMongoCollection<BsonDocument>>(GetKeyVaultCollection); // delay use _keyVaultClient
