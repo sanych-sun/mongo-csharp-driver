@@ -29,6 +29,7 @@ using MongoDB.Driver.Authentication.External;
 using MongoDB.Driver.Core.Configuration;
 using MongoDB.Driver.Core.Connections;
 using MongoDB.Driver.Core.Misc;
+using MongoDB.Driver.Encryption;
 using MongoDB.Libmongocrypt;
 
 namespace MongoDB.Libmongocrypt

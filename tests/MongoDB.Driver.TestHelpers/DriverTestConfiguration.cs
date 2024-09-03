@@ -28,6 +28,7 @@ using MongoDB.Driver.Core.Logging;
 using MongoDB.Driver.Core.Servers;
 using MongoDB.Driver.Encryption;
 using MongoDB.Driver.TestHelpers;
+using MongoDB.Libmongocrypt;
 
 namespace MongoDB.Driver.Tests
 {
@@ -56,6 +57,7 @@ namespace MongoDB.Driver.Tests
 
             SaslMechanismRegistry.Instance.RegisterAWSMechanism();
             KmsProviderRegistry.Instance.RegisterAWSKmsProvider();
+            AutoEncryptionProvider.Instance.RegisterAutoEncryption();
         }
 
         // public static properties
@@ -106,6 +108,8 @@ namespace MongoDB.Driver.Tests
         }
 
         // public static methods
+        public static void Initialize() {}
+
         public static IEnumerable<IMongoClient> CreateDirectClientsToServersInClientSettings(MongoClientSettings settings)
         {
             foreach (var server in settings.Servers)
