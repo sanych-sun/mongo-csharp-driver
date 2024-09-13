@@ -30,50 +30,59 @@
     <LibMongoCryptMacOsSourceUrl>https://mciuploads.s3.amazonaws.com/libmongocrypt-release/macos/r1.11/latest-r1.11/libmongocrypt.tar.gz</LibMongoCryptMacOsSourceUrl>
   </PropertyGroup>
 
-  <Target Name="DownloadNativeBinaries_linux" BeforeTargets="BeforeBuild" Condition="!Exists('$(ProjectDir)\linux\libmongocrypt.so')">
+  <Target Name="DownloadNativeBinaries_linux" BeforeTargets="BeforeBuild" Condition="!Exists('$(MSBuildProjectDirectory)\libmongocrypt.so')">
     <DownloadFile
       SourceUrl="$(LibMongoCryptUbuntuSourceUrl)"
       DestinationFolder="$(IntermediateOutputPath)linux"/>
     <Exec Command="tar -zxvf $(IntermediateOutputPath)linux/libmongocrypt.tar.gz --strip-components=2 -C $(IntermediateOutputPath)linux nocrypto/lib/libmongocrypt.so" />
-    <Copy SourceFiles="$(IntermediateOutputPath)linux/libmongocrypt.so" DestinationFolder="$(ProjectDir)/linux" Retries="5" RetryDelayMilliseconds="100"/>
+    <Copy SourceFiles="$(IntermediateOutputPath)linux/libmongocrypt.so" DestinationFolder="$(MSBuildProjectDirectory)" Retries="5" RetryDelayMilliseconds="100"/>
   </Target>
 
-  <Target Name="DownloadNativeBinaries_macos" BeforeTargets="BeforeBuild" Condition="!Exists('$(ProjectDir)\macos\libmongocrypt.dylib')">
+  <Target Name="DownloadNativeBinaries_macos" BeforeTargets="BeforeBuild" Condition="!Exists('$(MSBuildProjectDirectory)\libmongocrypt.dylib')">
     <DownloadFile
       SourceUrl="$(LibMongoCryptMacOsSourceUrl)"
       DestinationFolder="$(IntermediateOutputPath)macos"/>
     <Exec Command="tar -zxvf $(IntermediateOutputPath)macos/libmongocrypt.tar.gz --strip-components=1 -C $(IntermediateOutputPath)macos lib/libmongocrypt.dylib" />
-    <Copy SourceFiles="$(IntermediateOutputPath)macos/libmongocrypt.dylib" DestinationFolder="$(ProjectDir)/macos" Retries="5" RetryDelayMilliseconds="100"/>
+    <Copy SourceFiles="$(IntermediateOutputPath)macos/libmongocrypt.dylib" DestinationFolder="$(MSBuildProjectDirectory)" Retries="5" RetryDelayMilliseconds="100"/>
   </Target>
 
-  <Target Name="DownloadNativeBinaries_windows" BeforeTargets="BeforeBuild" Condition="!Exists('$(ProjectDir)\windows\mongocrypt.dll')">
+  <Target Name="DownloadNativeBinaries_windows" BeforeTargets="BeforeBuild" Condition="!Exists('$(MSBuildProjectDirectory)\mongocrypt.dll')">
     <DownloadFile
       SourceUrl="$(LibMongoCryptWindowsSourceUrl)"
       DestinationFolder="$(IntermediateOutputPath)windows"/>
     <Exec Command="tar -zxvf $(IntermediateOutputPath)windows/libmongocrypt.tar.gz --strip-components=1 -C $(IntermediateOutputPath)windows bin/mongocrypt.dll" />
-    <Copy SourceFiles="$(IntermediateOutputPath)windows/mongocrypt.dll" DestinationFolder="$(ProjectDir)/windows" Retries="5" RetryDelayMilliseconds="100"/>
+    <Copy SourceFiles="$(IntermediateOutputPath)windows/mongocrypt.dll" DestinationFolder="$(MSBuildProjectDirectory)" Retries="5" RetryDelayMilliseconds="100"/>
   </Target>
 
   <ItemGroup>
-    <Content Include="$(ProjectDir)\linux\libmongocrypt.so">
+    <Content Include="$(MSBuildProjectDirectory)\libmongocrypt.so">
       <Link>libmongocrypt.so</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <Pack>true</Pack>
-      <PackagePath>runtimes\linux\native</PackagePath>
     </Content>
 
-    <Content Include="$(ProjectDir)\macos\libmongocrypt.dylib">
+    <Content Include="$(MSBuildProjectDirectory)\libmongocrypt.dylib">
       <Link>libmongocrypt.dylib</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      <Pack>true</Pack>
-      <PackagePath>runtimes\osx\native</PackagePath>
     </Content>
 
-    <Content Include="$(ProjectDir)\windows\mongocrypt.dll">
+    <Content Include="$(MSBuildProjectDirectory)\mongocrypt.dll">
       <Link>mongocrypt.dll</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(MSBuildProjectDirectory)/mongocrypt.dll">
       <Pack>true</Pack>
-      <PackagePath>runtimes\win\native</PackagePath>
+      <PackagePath>runtimes/win/native</PackagePath>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)/libmongocrypt.so">
+      <Pack>true</Pack>
+      <PackagePath>runtimes/linux/native</PackagePath>
+    </Content>
+    <Content Include="$(MSBuildProjectDirectory)/libmongocrypt.dylib">
+      <Pack>true</Pack>
+      <PackagePath>runtimes/osx/native</PackagePath>
     </Content>
   </ItemGroup>
 
