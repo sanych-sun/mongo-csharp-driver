@@ -15,167 +15,79 @@
 
 using System;
 using System.Linq;
-using System.Threading.Tasks;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
-using MongoDB.Driver.Core.Bindings;
-using MongoDB.Driver.Core.Events;
 using MongoDB.Driver.Core.Misc;
+using MongoDB.Driver.Core.Operations.OperationExecutors;
 using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 
 namespace MongoDB.Driver.Core.Operations
 {
-    internal sealed class ListCollectionsOperation : IReadOperation<IAsyncCursor<BsonDocument>>, IExecutableInRetryableReadContext<IAsyncCursor<BsonDocument>>
+    internal sealed class ListCollectionsOperation : IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>
     {
-        private bool? _authorizedCollections;
-        private int? _batchSize;
-        private BsonValue _comment;
-        private BsonDocument _filter;
-        private readonly DatabaseNamespace _databaseNamespace;
-        private readonly MessageEncoderSettings _messageEncoderSettings;
-        private bool? _nameOnly;
-        private bool _retryRequested;
-
         public ListCollectionsOperation(
             DatabaseNamespace databaseNamespace,
             MessageEncoderSettings messageEncoderSettings)
         {
-            _databaseNamespace = Ensure.IsNotNull(databaseNamespace, nameof(databaseNamespace));
-            _messageEncoderSettings = Ensure.IsNotNull(messageEncoderSettings, nameof(messageEncoderSettings));
+            DatabaseNamespace = Ensure.IsNotNull(databaseNamespace, nameof(databaseNamespace));
+            MessageEncoderSettings = Ensure.IsNotNull(messageEncoderSettings, nameof(messageEncoderSettings));
         }
 
-        public bool? AuthorizedCollections
-        {
-            get => _authorizedCollections;
-            set => _authorizedCollections = value;
-        }
+        public bool? AuthorizedCollections { get; init; }
 
-        public int? BatchSize
-        {
-            get => _batchSize;
-            set => _batchSize = value;
-        }
+        public int? BatchSize { get; init; }
 
-        public BsonValue Comment
-        {
-            get { return _comment; }
-            set { _comment = value; }
-        }
+        public BsonValue Comment { get; init; }
 
-        public BsonDocument Filter
-        {
-            get { return _filter; }
-            set { _filter = value; }
-        }
+        public BsonDocument Filter { get; init; }
 
-        public DatabaseNamespace DatabaseNamespace
-        {
-            get { return _databaseNamespace; }
-        }
+        public DatabaseNamespace DatabaseNamespace { get; }
 
-        public MessageEncoderSettings MessageEncoderSettings
-        {
-            get { return _messageEncoderSettings; }
-        }
+        public MessageEncoderSettings MessageEncoderSettings { get; }
 
-        public bool? NameOnly
-        {
-            get { return _nameOnly; }
-            set { _nameOnly = value; }
-        }
+        public bool? NameOnly { get; init; }
 
-        public bool RetryRequested
-        {
-            get => _retryRequested;
-            set => _retryRequested = value;
-        }
+        public bool RetryRequested { get; init; }
 
-        public IAsyncCursor<BsonDocument> Execute(OperationContext operationContext, IReadBinding binding)
-        {
-            Ensure.IsNotNull(binding, nameof(binding));
-
-            using (BeginOperation())
-            {
-                using (var context = RetryableReadContext.Create(operationContext, binding, _retryRequested))
-                {
-                    return Execute(operationContext, context);
-                }
-            }
-        }
-
-        public IAsyncCursor<BsonDocument> Execute(OperationContext operationContext, RetryableReadContext context)
-        {
-            Ensure.IsNotNull(context, nameof(context));
-
-            using (BeginOperation())
-            {
-                var operation = CreateOperation();
-                var result = operation.Execute(operationContext, context);
-                return CreateCursor(context.ChannelSource, context.Channel, result);
-            }
-        }
-
-        public async Task<IAsyncCursor<BsonDocument>> ExecuteAsync(OperationContext operationContext, IReadBinding binding)
-        {
-            Ensure.IsNotNull(binding, nameof(binding));
-
-            using (BeginOperation())
-            {
-                using (var context = await RetryableReadContext.CreateAsync(operationContext, binding, _retryRequested).ConfigureAwait(false))
-                {
-                    return await ExecuteAsync(operationContext, context).ConfigureAwait(false);
-                }
-            }
-        }
-
-        public async Task<IAsyncCursor<BsonDocument>> ExecuteAsync(OperationContext operationContext, RetryableReadContext context)
-        {
-            Ensure.IsNotNull(context, nameof(context));
-
-            using (BeginOperation())
-            {
-                var operation = CreateOperation();
-                var result = await operation.ExecuteAsync(operationContext, context).ConfigureAwait(false);
-                return CreateCursor(context.ChannelSource, context.Channel, result);
-            }
-        }
-
-        private IDisposable BeginOperation() => EventContext.BeginOperation(null, "listCollections");
-
-        private ReadCommandOperation<BsonDocument> CreateOperation()
-        {
-            var command = new BsonDocument
+        string IOperation.OperationName => "listCollections";
+        DatabaseNamespace IOperation.DatabaseNamespace => DatabaseNamespace;
+        bool IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.IsRetriable => RetryRequested;
+        IBsonSerializer<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.ResultSerializer
+            => BsonDocumentSerializer.Instance;
+        BsonDocument IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.CreateCommand()
+            => new BsonDocument
             {
                 { "listCollections", 1 },
-                { "filter", _filter, _filter != null },
-                { "nameOnly", () => _nameOnly.Value, _nameOnly.HasValue },
-                { "cursor", () => new BsonDocument("batchSize", _batchSize.Value), _batchSize.HasValue },
-                { "authorizedCollections", () => _authorizedCollections.Value, _authorizedCollections.HasValue },
-                { "comment", _comment, _comment != null }
+                { "filter", Filter, Filter != null },
+                { "nameOnly", () => NameOnly.Value, NameOnly.HasValue },
+                { "cursor", () => new BsonDocument("batchSize", BatchSize.Value), BatchSize.HasValue },
+                { "authorizedCollections", () => AuthorizedCollections.Value, AuthorizedCollections.HasValue },
+                { "comment", Comment, Comment != null }
             };
-            return new ReadCommandOperation<BsonDocument>(_databaseNamespace, command, BsonDocumentSerializer.Instance, _messageEncoderSettings)
-            {
-                RetryRequested = _retryRequested // might be overridden by retryable read context
-            };
-        }
 
-        private IAsyncCursor<BsonDocument> CreateCursor(IChannelSourceHandle channelSource, IChannelHandle channel, BsonDocument result)
+        IAsyncCursor<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.HandleResult(IOperationExecutorContext context, BsonDocument serverResponse)
         {
-            var cursorDocument = result["cursor"].AsBsonDocument;
+            var cursorDocument = serverResponse["cursor"].AsBsonDocument;
             var cursorId = cursorDocument["id"].ToInt64();
-            var getMoreChannelSource = ChannelPinningHelper.CreateGetMoreChannelSource(channelSource, channel, cursorId);
+            var getMoreChannelSource = ChannelPinningHelper.CreateGetMoreChannelSource(context.ChannelSource, context.Channel, cursorId);
             var cursor = new AsyncCursor<BsonDocument>(
                 getMoreChannelSource,
                 CollectionNamespace.FromFullName(cursorDocument["ns"].AsString),
-                _comment,
+                Comment,
                 cursorDocument["firstBatch"].AsBsonArray.OfType<BsonDocument>().ToList(),
                 cursorId,
-                batchSize: _batchSize ?? 0,
+                batchSize: BatchSize ?? 0,
                 0,
                 BsonDocumentSerializer.Instance,
-                _messageEncoderSettings);
+                MessageEncoderSettings);
 
             return cursor;
+        }
+
+        IAsyncCursor<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.HandleException(IOperationExecutorContext context, Exception exception)
+        {
+            throw exception;
         }
     }
 }

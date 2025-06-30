@@ -29,4 +29,11 @@ namespace MongoDB.Driver.Core.Operations
         TResult Execute(OperationContext operationContext, IWriteBinding binding);
         Task<TResult> ExecuteAsync(OperationContext operationContext, IWriteBinding binding);
     }
+
+    internal interface IOperation
+    {
+        string OperationName { get; }
+
+        DatabaseNamespace DatabaseNamespace { get; }
+    }
 }
