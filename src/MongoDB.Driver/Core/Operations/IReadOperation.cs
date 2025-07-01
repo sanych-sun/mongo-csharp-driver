@@ -23,13 +23,9 @@ namespace MongoDB.Driver.Core.Operations
     internal interface IReadOperation<TResult, TServerResponse> : IOperation
     {
         bool IsRetriable { get; }
-
         IBsonSerializer<TServerResponse> ResultSerializer { get; }
-
-        BsonDocument CreateCommand();
-
+        BsonDocument CreateCommand(IOperationExecutorContext context);
         TResult HandleResult(IOperationExecutorContext context, TServerResponse serverResponse);
-
-        TResult HandleException(IOperationExecutorContext context, Exception exception);
+        bool TryHandleException(IOperationExecutorContext context, Exception exception, out TResult result);
     }
 }

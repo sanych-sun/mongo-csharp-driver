@@ -20,18 +20,14 @@ using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver.Core.Misc;
 using MongoDB.Driver.Core.Operations.OperationExecutors;
-using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 
 namespace MongoDB.Driver.Core.Operations
 {
     internal sealed class ListCollectionsOperation : IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>
     {
-        public ListCollectionsOperation(
-            DatabaseNamespace databaseNamespace,
-            MessageEncoderSettings messageEncoderSettings)
+        public ListCollectionsOperation(DatabaseNamespace databaseNamespace)
         {
             DatabaseNamespace = Ensure.IsNotNull(databaseNamespace, nameof(databaseNamespace));
-            MessageEncoderSettings = Ensure.IsNotNull(messageEncoderSettings, nameof(messageEncoderSettings));
         }
 
         public bool? AuthorizedCollections { get; init; }
@@ -44,8 +40,6 @@ namespace MongoDB.Driver.Core.Operations
 
         public DatabaseNamespace DatabaseNamespace { get; }
 
-        public MessageEncoderSettings MessageEncoderSettings { get; }
-
         public bool? NameOnly { get; init; }
 
         public bool RetryRequested { get; init; }
@@ -55,7 +49,7 @@ namespace MongoDB.Driver.Core.Operations
         bool IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.IsRetriable => RetryRequested;
         IBsonSerializer<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.ResultSerializer
             => BsonDocumentSerializer.Instance;
-        BsonDocument IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.CreateCommand()
+        BsonDocument IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.CreateCommand(IOperationExecutorContext context)
             => new BsonDocument
             {
                 { "listCollections", 1 },
@@ -80,14 +74,15 @@ namespace MongoDB.Driver.Core.Operations
                 batchSize: BatchSize ?? 0,
                 0,
                 BsonDocumentSerializer.Instance,
-                MessageEncoderSettings);
+                context.MessageEncoderSettings);
 
             return cursor;
         }
 
-        IAsyncCursor<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.HandleException(IOperationExecutorContext context, Exception exception)
+        bool IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.TryHandleException(IOperationExecutorContext context, Exception exception, out IAsyncCursor<BsonDocument> result)
         {
-            throw exception;
+            result = null;
+            return false;
         }
     }
 }

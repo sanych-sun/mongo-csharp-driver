@@ -13,15 +13,23 @@
  * limitations under the License.
  */
 
+using System.Threading.Tasks;
 using MongoDB.Driver.Core.Bindings;
-using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 
 namespace MongoDB.Driver.Core.Operations.OperationExecutors
 {
-    internal interface IOperationExecutorContext
+    internal interface IReadOperationExecutor
     {
-        public IChannelHandle Channel { get; }
-        public IChannelSourceHandle ChannelSource { get; }
-        public MessageEncoderSettings MessageEncoderSettings { get; }
+        public TResult Execute<TResult, TServerResponse>(
+            OperationContext operationContext,
+            IClientSessionHandle session,
+            IReadBindingHandle binding,
+            IReadOperation<TResult, TServerResponse> operation);
+
+        public Task<TResult> ExecuteAsync<TResult, TServerResponse>(
+            OperationContext operationContext,
+            IClientSessionHandle session,
+            IReadBindingHandle binding,
+            IReadOperation<TResult, TServerResponse> operation);
     }
 }

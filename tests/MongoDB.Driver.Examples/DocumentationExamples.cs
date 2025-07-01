@@ -1512,7 +1512,8 @@ namespace MongoDB.Driver.Examples
             //db.runCommand({collStats:"restaurants"})
 
             const string collectionName = "restaurants";
-            if (database.ListCollectionNames().ToList().Any(c => c == collectionName))
+            var collections = database.ListCollectionNames().ToList();
+            if (collections.Any(c => c == collectionName))
             {
                 database.DropCollection(collectionName);
             }
