@@ -49,7 +49,7 @@ namespace MongoDB.Driver.Core.Operations
         bool IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.IsRetriable => RetryRequested;
         IBsonSerializer<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.ResultSerializer
             => BsonDocumentSerializer.Instance;
-        BsonDocument IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.CreateCommand(IOperationExecutorContext context)
+        BsonDocument IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.CreateCommand(CommandExecutorContext context)
             => new BsonDocument
             {
                 { "listCollections", 1 },
@@ -60,7 +60,7 @@ namespace MongoDB.Driver.Core.Operations
                 { "comment", Comment, Comment != null }
             };
 
-        IAsyncCursor<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.HandleResult(IOperationExecutorContext context, BsonDocument serverResponse)
+        IAsyncCursor<BsonDocument> IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.HandleResult(CommandExecutorContext context, BsonDocument serverResponse)
         {
             var cursorDocument = serverResponse["cursor"].AsBsonDocument;
             var cursorId = cursorDocument["id"].ToInt64();
@@ -79,7 +79,7 @@ namespace MongoDB.Driver.Core.Operations
             return cursor;
         }
 
-        bool IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.TryHandleException(IOperationExecutorContext context, Exception exception, out IAsyncCursor<BsonDocument> result)
+        bool IReadOperation<IAsyncCursor<BsonDocument>, BsonDocument>.TryHandleException(CommandExecutorContext context, Exception exception, out IAsyncCursor<BsonDocument> result)
         {
             result = null;
             return false;

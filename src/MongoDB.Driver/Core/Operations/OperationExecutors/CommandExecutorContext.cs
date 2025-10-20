@@ -13,14 +13,29 @@
  * limitations under the License.
  */
 
+using System;
 using MongoDB.Driver.Core.Bindings;
 using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 
 namespace MongoDB.Driver.Core.Operations.OperationExecutors
 {
-    internal interface IOperationExecutorContext
+    internal sealed class CommandExecutorContext : IDisposable
     {
+        public CommandExecutorContext(IChannelHandle channel, IChannelSourceHandle channelSource, MessageEncoderSettings messageEncoderSettings)
+        {
+            Channel = channel;
+            ChannelSource = channelSource;
+            MessageEncoderSettings = messageEncoderSettings;
+        }
+
+        public void Dispose()
+        {
+            Channel.Dispose();
+            ChannelSource.Dispose();
+        }
+
         public IChannelHandle Channel { get; }
+        // TODO: Probably could be replaced with IServer
         public IChannelSourceHandle ChannelSource { get; }
         public MessageEncoderSettings MessageEncoderSettings { get; }
     }

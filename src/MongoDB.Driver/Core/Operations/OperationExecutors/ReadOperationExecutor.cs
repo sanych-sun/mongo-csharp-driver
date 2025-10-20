@@ -31,19 +31,20 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
 
         private MessageEncoderSettings MessageEncoderSettings { get; }
 
-        public TResult Execute<TResult, TServerResponse>(OperationContext operationContext,
+        public TResult Execute<TResult, TServerResponse>(
+            OperationContext operationContext,
             IClientSessionHandle session,
             IReadBindingHandle binding,
             IReadOperation<TResult, TServerResponse> operation)
         {
-            using var operationExecutorContext = new ReadOperationExecutorContext(binding, MessageEncoderSettings);
-            operationExecutorContext.AcquireChannel(operationContext);
+            using var operationExecutorContext = CreateOperationExecutorContext(operationContext, binding);
 
             var command = operation.CreateCommand(operationExecutorContext);
 
             try
             {
                 var response = operationExecutorContext.Channel.Command(
+                    operationContext,
                     session.WrappedCoreSession,
                     binding.ReadPreference,
                     operation.DatabaseNamespace,
@@ -54,8 +55,7 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
                     null, // postWriteAction,
                     CommandResponseHandling.Return,
                     operation.ResultSerializer,
-                    MessageEncoderSettings,
-                    operationContext.CancellationToken);
+                    MessageEncoderSettings);
 
                 return operation.HandleResult(operationExecutorContext, response);
             }
@@ -71,14 +71,14 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
             IReadBindingHandle binding,
             IReadOperation<TResult, TServerResponse> operation)
         {
-            using var operationExecutorContext = new ReadOperationExecutorContext(binding, MessageEncoderSettings);
-            await operationExecutorContext.AcquireChannelAsync(operationContext).ConfigureAwait(false);
+            using var operationExecutorContext = await CreateOperationExecutorContextAsync(operationContext, binding).ConfigureAwait(false);
 
             var command = operation.CreateCommand(operationExecutorContext);
 
             try
             {
                 var response = await operationExecutorContext.Channel.CommandAsync(
+                    operationContext,
                     session.WrappedCoreSession,
                     binding.ReadPreference,
                     operation.DatabaseNamespace,
@@ -89,8 +89,7 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
                     null, // postWriteAction,
                     CommandResponseHandling.Return,
                     operation.ResultSerializer,
-                    MessageEncoderSettings,
-                    operationContext.CancellationToken).ConfigureAwait(false);
+                    MessageEncoderSettings).ConfigureAwait(false);
 
                 return operation.HandleResult(operationExecutorContext, response);
             }
@@ -100,41 +99,43 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
             }
         }
 
-        private sealed class ReadOperationExecutorContext : IOperationExecutorContext, IDisposable
+        private CommandExecutorContext CreateOperationExecutorContext(OperationContext operationContext, IReadBinding binding)
         {
-            public ReadOperationExecutorContext(IReadBindingHandle binding, MessageEncoderSettings messageEncoderSettings)
+            IChannelSourceHandle channelSource = null;
+            IChannelHandle channel = null;
+
+            try
             {
-                Binding = binding;
-                MessageEncoderSettings = messageEncoderSettings;
+                channelSource = binding.GetReadChannelSource(operationContext);
+                channel = channelSource.GetChannel(operationContext);
+                return new CommandExecutorContext(channel, channelSource, MessageEncoderSettings);
             }
-
-            public IReadBindingHandle Binding { get; }
-            public IChannelHandle Channel { get; private set; }
-            public IChannelSourceHandle ChannelSource { get; private set; }
-            public MessageEncoderSettings MessageEncoderSettings { get; }
-
-            public void Dispose()
+            catch
             {
-                ChannelSource?.Dispose();
-                Channel?.Dispose();
-            }
-
-            public void AcquireChannel(OperationContext operationContext)
-            {
-                // TODO: apply server selection timeout here
-                ChannelSource = Binding.GetReadChannelSource(operationContext);
-                Channel = ChannelSource.GetChannel(operationContext);
-            }
-
-            public async Task AcquireChannelAsync(OperationContext operationContext)
-            {
-                // TODO: apply server selection timeout here
-                ChannelSource = await Binding.GetReadChannelSourceAsync(operationContext).ConfigureAwait(false);
-                Channel = await ChannelSource.GetChannelAsync(operationContext).ConfigureAwait(false);
+                channelSource?.Dispose();
+                channel?.Dispose();
+                throw;
             }
         }
 
+        private async Task<CommandExecutorContext> CreateOperationExecutorContextAsync(OperationContext operationContext, IReadBinding binding)
+        {
+            IChannelSourceHandle channelSource = null;
+            IChannelHandle channel = null;
 
+            try
+            {
+                channelSource = await binding.GetReadChannelSourceAsync(operationContext).ConfigureAwait(false);
+                channel = await channelSource.GetChannelAsync(operationContext).ConfigureAwait(false);
+                return new CommandExecutorContext(channel, channelSource, MessageEncoderSettings);
+            }
+            catch
+            {
+                channelSource?.Dispose();
+                channel?.Dispose();
+                throw;
+            }
+        }
     }
 }
 

@@ -33,12 +33,12 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
 
         private MessageEncoderSettings MessageEncoderSettings { get; }
 
-        public TResult Execute<TResult, TServerResponse>(OperationContext operationContext,
+        public TResult Execute<TResult, TServerResponse>(
+            OperationContext operationContext,
             IClientSessionHandle session,
             IReadBindingHandle binding,
             IReadOperation<TResult, TServerResponse> operation)
         {
-            using var operationExecutorContext = new RetryableReadOperationExecutorContext(binding, MessageEncoderSettings);
             HashSet<ServerDescription> deprioritizedServers = null;
             var attempt = 0;
             Exception originalException = null;
@@ -49,13 +49,14 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
                 operationContext.ThrowIfTimedOutOrCanceled();
 
                 attempt++;
-                operationExecutorContext.AcquireOrReplaceChannel(operationContext, deprioritizedServers);
+                using var operationExecutorContext = CreateOperationExecutorContext(operationContext, binding, deprioritizedServers);
                 var server = operationExecutorContext.ChannelSource.ServerDescription;
                 var command = operation.CreateCommand(operationExecutorContext);
 
                 try
                 {
                     var response = operationExecutorContext.Channel.Command(
+                        operationContext,
                         session.WrappedCoreSession,
                         binding.ReadPreference,
                         operation.DatabaseNamespace,
@@ -66,8 +67,7 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
                         null, // postWriteAction,
                         CommandResponseHandling.Return,
                         operation.ResultSerializer,
-                        MessageEncoderSettings,
-                        operationContext.CancellationToken);
+                        MessageEncoderSettings);
 
                     return operation.HandleResult(operationExecutorContext, response);
                 }
@@ -94,7 +94,6 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
             IReadBindingHandle binding,
             IReadOperation<TResult, TServerResponse> operation)
         {
-            using var operationExecutorContext = new RetryableReadOperationExecutorContext(binding, MessageEncoderSettings);
             HashSet<ServerDescription> deprioritizedServers = null;
             var attempt = 0;
             Exception originalException = null;
@@ -105,13 +104,14 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
                 operationContext.ThrowIfTimedOutOrCanceled();
 
                 attempt++;
-                await operationExecutorContext.AcquireOrReplaceChannelAsync(operationContext, deprioritizedServers).ConfigureAwait(false);
+                using var operationExecutorContext = await CreateOperationExecutorContextAsync(operationContext, binding, deprioritizedServers).ConfigureAwait(false);
                 var server = operationExecutorContext.ChannelSource.ServerDescription;
                 var command = operation.CreateCommand(operationExecutorContext);
 
                 try
                 {
                     var response = await operationExecutorContext.Channel.CommandAsync(
+                        operationContext,
                         session.WrappedCoreSession,
                         binding.ReadPreference,
                         operation.DatabaseNamespace,
@@ -122,8 +122,7 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
                         null, // postWriteAction,
                         CommandResponseHandling.Return,
                         operation.ResultSerializer,
-                        MessageEncoderSettings,
-                        operationContext.CancellationToken).ConfigureAwait(false);
+                        MessageEncoderSettings).ConfigureAwait(false);
 
                     return operation.HandleResult(operationExecutorContext, response);
                 }
@@ -144,77 +143,67 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
             throw originalException;
         }
 
-        private sealed class RetryableReadOperationExecutorContext : IOperationExecutorContext, IDisposable
+        private CommandExecutorContext CreateOperationExecutorContext(OperationContext operationContext, IReadBinding binding, HashSet<ServerDescription> deprioritizedServers)
         {
-            public RetryableReadOperationExecutorContext(IReadBindingHandle binding, MessageEncoderSettings messageEncoderSettings)
-            {
-                Binding = binding;
-                MessageEncoderSettings = messageEncoderSettings;
-            }
+            IChannelSourceHandle channelSource = null;
+            IChannelHandle channel = null;
 
-            public IReadBindingHandle Binding { get; }
-            public IChannelHandle Channel { get; private set; }
-            public IChannelSourceHandle ChannelSource { get; private set; }
-            public MessageEncoderSettings MessageEncoderSettings { get; }
-
-            public void Dispose()
+            var attempt = 1;
+            while (true)
             {
-                ChannelSource?.Dispose();
-                Channel?.Dispose();
-            }
 
-            public void AcquireOrReplaceChannel(OperationContext operationContext, IReadOnlyCollection<ServerDescription> deprioritizedServers)
-            {
-                // TODO: apply server selection timeout here
-                var attempt = 1;
-                while (true)
+                try
                 {
                     operationContext.ThrowIfTimedOutOrCanceled();
-                    ReplaceChannelSource(Binding.GetReadChannelSource(operationContext, deprioritizedServers));
-                    try
-                    {
-                        ReplaceChannel(ChannelSource.GetChannel(operationContext));
-                        return;
-                    }
-                    catch (Exception ex) when (RetryableReadHelper.ShouldConnectionAcquireBeRetried(operationContext, ex, attempt))
+                    channelSource = binding.GetReadChannelSource(operationContext, deprioritizedServers);
+                    channel = channelSource.GetChannel(operationContext);
+                }
+                catch (Exception ex)
+                {
+                    channelSource?.Dispose();
+                    channel?.Dispose();
+
+                    if (RetryableReadHelper.ShouldConnectionAcquireBeRetried(operationContext, ex, attempt))
                     {
                         attempt++;
                     }
+                    else
+                    {
+                        throw;
+                    }
                 }
             }
+        }
 
-            public async Task AcquireOrReplaceChannelAsync(OperationContext operationContext, IReadOnlyCollection<ServerDescription> deprioritizedServers)
+        private async Task<CommandExecutorContext> CreateOperationExecutorContextAsync(OperationContext operationContext, IReadBinding binding, HashSet<ServerDescription> deprioritizedServers)
+        {
+            IChannelSourceHandle channelSource = null;
+            IChannelHandle channel = null;
+
+            var attempt = 1;
+            while (true)
             {
-                // TODO: apply server selection timeout here
-                var attempt = 1;
-                while (true)
+
+                try
                 {
                     operationContext.ThrowIfTimedOutOrCanceled();
-                    ReplaceChannelSource(await Binding.GetReadChannelSourceAsync(operationContext, deprioritizedServers).ConfigureAwait(false));
-                    try
-                    {
-                        ReplaceChannel(await ChannelSource.GetChannelAsync(operationContext).ConfigureAwait(false));
-                        return;
-                    }
-                    catch (Exception ex) when (RetryableReadHelper.ShouldConnectionAcquireBeRetried(operationContext, ex, attempt))
+                    channelSource = await binding.GetReadChannelSourceAsync(operationContext, deprioritizedServers).ConfigureAwait(false);
+                    channel = await channelSource.GetChannelAsync(operationContext).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    channelSource?.Dispose();
+                    channel?.Dispose();
+
+                    if (RetryableReadHelper.ShouldConnectionAcquireBeRetried(operationContext, ex, attempt))
                     {
                         attempt++;
                     }
+                    else
+                    {
+                        throw;
+                    }
                 }
-            }
-
-            private void ReplaceChannel(IChannelHandle channel)
-            {
-                Channel?.Dispose();
-                Channel = channel;
-            }
-
-            private void ReplaceChannelSource(IChannelSourceHandle channelSource)
-            {
-                ChannelSource?.Dispose();
-                Channel?.Dispose();
-                ChannelSource = channelSource;
-                Channel = null;
             }
         }
 

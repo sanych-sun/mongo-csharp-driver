@@ -26,6 +26,7 @@ using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver.Core.Clusters;
 using MongoDB.Driver.Core.Misc;
 using MongoDB.Driver.Core.Operations;
+using MongoDB.Driver.Core.Operations.OperationExecutors;
 using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 using MongoDB.Driver.Encryption;
 
@@ -691,7 +692,7 @@ namespace MongoDB.Driver
         {
             var messageEncoderSettings = GetMessageEncoderSettings();
             var renderArgs = GetRenderArgs(BsonDocumentSerializer.Instance);
-            return new ListCollectionsOperation(_databaseNamespace, messageEncoderSettings)
+            return new ListCollectionsOperation(_databaseNamespace)
             {
                 AuthorizedCollections = options?.AuthorizedCollections,
                 Comment = options?.Comment,

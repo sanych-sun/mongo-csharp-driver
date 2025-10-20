@@ -14,17 +14,19 @@
  */
 
 using System;
+using System.Collections.Generic;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver.Core.Operations.OperationExecutors;
+using MongoDB.Driver.Core.WireProtocol.Messages;
 
 namespace MongoDB.Driver.Core.Operations
 {
-    internal interface IReadOperation<TResult, TServerResponse> : IOperation
+    internal interface IBatchOperation<TResult, TServerResponse> : IOperation
     {
         IBsonSerializer<TServerResponse> ResultSerializer { get; }
-        BsonDocument CreateCommand(CommandExecutorContext context);
-        TResult HandleResult(CommandExecutorContext context, TServerResponse serverResponse);
-        bool TryHandleException(CommandExecutorContext context, Exception exception, out TResult result);
+        IEnumerable<(BsonDocument Command, BatchableCommandMessageSection Payload)> GetBatches(CommandExecutorContext context);
+        TResult HandleResult(CommandExecutorContext context, TServerResponse serverResponse, TResult previousResult);
+        bool TryHandleException(CommandExecutorContext context, Exception exception, TResult previousResult);
     }
 }
