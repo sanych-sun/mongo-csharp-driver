@@ -40,17 +40,54 @@ namespace MongoDB.Driver.Core.Misc
         {
             try
             {
-                using var manualResetEvent = new ManualResetEventSlim();
-                var readOperation = stream.BeginRead(
-                    buffer,
-                    offset,
-                    count,
-                    state => ((ManualResetEventSlim)state.AsyncState).Set(),
-                    manualResetEvent);
+                // Begin/End approach
+                // using var manualResetEvent = new ManualResetEventSlim();
+                // var readOperation = stream.BeginRead(
+                //     buffer,
+                //     offset,
+                //     count,
+                //     state => ((ManualResetEventSlim)state.AsyncState).Set(),
+                //     manualResetEvent);
+                //
+                // if (readOperation.IsCompleted || manualResetEvent.Wait(timeout, cancellationToken))
+                // {
+                //     return stream.EndRead(readOperation);
+                // }
 
-                if (readOperation.IsCompleted || manualResetEvent.Wait(timeout, cancellationToken))
+                // Task-based API
+                // var readTask = stream.ReadAsync(buffer, offset, count);
+                // try
+                // {
+                //     readTask.Wait((int)timeout.TotalMilliseconds, cancellationToken);
+                //     return readTask.GetAwaiter().GetResult();
+                // }
+                // catch (Exception)
+                // {
+                //     readTask.IgnoreExceptions();
+                //     throw;
+                // }
+
+                // Sync API
+                Timer timer = null;
+                IDisposable cancellationSubscription = null;
+                if (timeout > TimeSpan.Zero)
                 {
-                    return stream.EndRead(readOperation);
+                    timer = new Timer(_ => { stream.Dispose(); });
+                }
+
+                if (cancellationToken.CanBeCanceled)
+                {
+                    cancellationSubscription = cancellationToken.Register(() => { stream.Dispose(); });
+                }
+
+                try
+                {
+                    return stream.Read(buffer, offset, count);
+                }
+                finally
+                {
+                    timer?.Dispose();
+                    cancellationSubscription?.Dispose();
                 }
             }
             catch (OperationCanceledException)
@@ -221,18 +258,57 @@ namespace MongoDB.Driver.Core.Misc
         {
             try
             {
-                using var manualResetEvent = new ManualResetEventSlim();
-                var writeOperation = stream.BeginWrite(
-                    buffer,
-                    offset,
-                    count,
-                    state => ((ManualResetEventSlim)state.AsyncState).Set(),
-                    manualResetEvent);
+                // Begin/End approach
+                // using var manualResetEvent = new ManualResetEventSlim();
+                // var writeOperation = stream.BeginWrite(
+                //     buffer,
+                //     offset,
+                //     count,
+                //     state => ((ManualResetEventSlim)state.AsyncState).Set(),
+                //     manualResetEvent);
+                //
+                // if (writeOperation.IsCompleted || manualResetEvent.Wait(timeout, cancellationToken))
+                // {
+                //     stream.EndWrite(writeOperation);
+                //     return;
+                // }
 
-                if (writeOperation.IsCompleted || manualResetEvent.Wait(timeout, cancellationToken))
+                // Task-based API
+                // var writeTask = stream.WriteAsync(buffer, offset, count);
+                // try
+                // {
+                //     writeTask.Wait((int)timeout.TotalMilliseconds, cancellationToken);
+                //     writeTask.GetAwaiter().GetResult();
+                //     return;
+                // }
+                // catch (Exception)
+                // {
+                //     writeTask.IgnoreExceptions();
+                //     throw;
+                // }
+
+                // Sync API
+                Timer timer = null;
+                IDisposable cancellationSubscription = null;
+                if (timeout > TimeSpan.Zero)
                 {
-                    stream.EndWrite(writeOperation);
+                    timer = new Timer(_ => { stream.Dispose(); });
+                }
+
+                if (cancellationToken.CanBeCanceled)
+                {
+                    cancellationSubscription = cancellationToken.Register(() => { stream.Dispose(); });
+                }
+
+                try
+                {
+                    stream.Write(buffer, offset, count);
                     return;
+                }
+                finally
+                {
+                    timer?.Dispose();
+                    cancellationSubscription?.Dispose();
                 }
             }
             catch (OperationCanceledException)
