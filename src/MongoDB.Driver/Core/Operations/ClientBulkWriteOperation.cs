@@ -327,6 +327,13 @@ namespace MongoDB.Driver.Core.Operations
                 var isSucceeded = operationResponse["ok"].AsDouble != 0;
                 var operationIndex = _writeModels.Offset + operationResponse["idx"].AsInt32;
 
+                if (isSucceeded && _errorsOnly)
+                {
+                    // it is possible for the server to return successful operation results even though it was requested not to.
+                    // See https://jira.mongodb.org/browse/SERVER-113344 for more details. The code below is to mitigate this server issue.
+                    continue;
+                }
+
                 if (isSucceeded)
                 {
                     var writeModel = _writeModels.Items[operationIndex];
