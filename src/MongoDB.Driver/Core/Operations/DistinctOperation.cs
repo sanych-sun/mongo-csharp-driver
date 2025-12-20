@@ -14,77 +14,43 @@
 */
 
 using System;
-using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Bson.IO;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
-using MongoDB.Driver.Core.Bindings;
-using MongoDB.Driver.Core.Connections;
-using MongoDB.Driver.Core.Events;
 using MongoDB.Driver.Core.Misc;
-using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
+using MongoDB.Driver.Core.Operations.OperationExecutors;
 
 namespace MongoDB.Driver.Core.Operations
 {
-    internal sealed class DistinctOperation<TValue> : IReadOperation<IAsyncCursor<TValue>>
+    internal sealed class DistinctOperation<TValue> : ReadOperationBase<IAsyncCursor<TValue>, DistinctOperation<TValue>.DistinctResult>
     {
-        private Collation _collation;
-        private CollectionNamespace _collectionNamespace;
-        private BsonValue _comment;
-        private BsonDocument _filter;
-        private string _fieldName;
         private TimeSpan? _maxTime;
-        private MessageEncoderSettings _messageEncoderSettings;
         private ReadConcern _readConcern = ReadConcern.Default;
-        private bool _retryRequested;
         private IBsonSerializer<TValue> _valueSerializer;
 
-        public DistinctOperation(CollectionNamespace collectionNamespace, IBsonSerializer<TValue> valueSerializer, string fieldName, MessageEncoderSettings messageEncoderSettings)
+        public DistinctOperation(CollectionNamespace collectionNamespace, IBsonSerializer<TValue> valueSerializer, string fieldName)
+            : base("distinct", collectionNamespace?.DatabaseNamespace, new DistinctResultDeserializer(valueSerializer))
         {
-            _collectionNamespace = Ensure.IsNotNull(collectionNamespace, nameof(collectionNamespace));
+            CollectionNamespace = Ensure.IsNotNull(collectionNamespace, nameof(collectionNamespace));
             _valueSerializer = Ensure.IsNotNull(valueSerializer, nameof(valueSerializer));
-            _fieldName = Ensure.IsNotNullOrEmpty(fieldName, nameof(fieldName));
-            _messageEncoderSettings = Ensure.IsNotNull(messageEncoderSettings, nameof(messageEncoderSettings));
+            FieldName = Ensure.IsNotNullOrEmpty(fieldName, nameof(fieldName));
         }
 
-        public Collation Collation
-        {
-            get { return _collation; }
-            set { _collation = value; }
-        }
+        public Collation Collation { get; set; }
 
-        public BsonValue Comment
-        {
-            get { return _comment; }
-            set { _comment = value; }
-        }
+        public BsonValue Comment { get; set; }
 
-        public CollectionNamespace CollectionNamespace
-        {
-            get { return _collectionNamespace; }
-        }
+        public CollectionNamespace CollectionNamespace { get; }
 
-        public BsonDocument Filter
-        {
-            get { return _filter; }
-            set { _filter = value; }
-        }
+        public BsonDocument Filter { get; set; }
 
-        public string FieldName
-        {
-            get { return _fieldName; }
-        }
+        public string FieldName { get; }
 
         public TimeSpan? MaxTime
         {
             get { return _maxTime; }
             set { _maxTime = Ensure.IsNullOrInfiniteOrGreaterThanOrEqualToZero(value, nameof(value)); }
-        }
-
-        public MessageEncoderSettings MessageEncoderSettings
-        {
-            get { return _messageEncoderSettings; }
         }
 
         public ReadConcern ReadConcern
@@ -93,84 +59,39 @@ namespace MongoDB.Driver.Core.Operations
             set { _readConcern = Ensure.IsNotNull(value, nameof(value)); }
         }
 
-        public bool RetryRequested
-        {
-            get => _retryRequested;
-            set => _retryRequested = value;
-        }
-
         public IBsonSerializer<TValue> ValueSerializer
         {
             get { return _valueSerializer; }
         }
 
-        public IAsyncCursor<TValue> Execute(OperationContext operationContext, IReadBinding binding)
+        public override BsonDocument CreateCommand(OperationContext operationContext, CommandExecutorContext context)
         {
-            Ensure.IsNotNull(binding, nameof(binding));
-
-            using (BeginOperation())
-            using (var context = RetryableReadContext.Create(operationContext, binding, _retryRequested))
-            {
-                var operation = CreateOperation(operationContext, context);
-                var result = operation.Execute(operationContext, context);
-
-                binding.Session.SetSnapshotTimeIfNeeded(result.AtClusterTime);
-
-                return new SingleBatchAsyncCursor<TValue>(result.Values);
-            }
-        }
-
-        public async Task<IAsyncCursor<TValue>> ExecuteAsync(OperationContext operationContext, IReadBinding binding)
-        {
-            Ensure.IsNotNull(binding, nameof(binding));
-
-            using (BeginOperation())
-            using (var context = await RetryableReadContext.CreateAsync(operationContext, binding, _retryRequested).ConfigureAwait(false))
-            {
-                var operation = CreateOperation(operationContext, context);
-                var result = await operation.ExecuteAsync(operationContext, context).ConfigureAwait(false);
-
-                binding.Session.SetSnapshotTimeIfNeeded(result.AtClusterTime);
-
-                return new SingleBatchAsyncCursor<TValue>(result.Values);
-            }
-        }
-
-        public BsonDocument CreateCommand(OperationContext operationContext, ICoreSession session, ConnectionDescription connectionDescription)
-        {
-            var readConcern = ReadConcernHelper.GetReadConcernForCommand(session, connectionDescription, _readConcern);
+            var readConcern = ReadConcernHelper.GetReadConcernForCommand(context.Session, context.ConnectionDescription, _readConcern);
             return new BsonDocument
             {
-                { "distinct", _collectionNamespace.CollectionName },
-                { "key", _fieldName },
-                { "query", _filter, _filter != null },
+                { "distinct", CollectionNamespace.CollectionName },
+                { "key", FieldName },
+                { "query", Filter, Filter != null },
                 { "maxTimeMS", () => MaxTimeHelper.ToMaxTimeMS(_maxTime.Value), _maxTime.HasValue && !operationContext.IsRootContextTimeoutConfigured() },
-                { "collation", () => _collation.ToBsonDocument(), _collation != null },
-                { "comment", _comment, _comment != null },
+                { "collation", () => Collation.ToBsonDocument(), Collation != null },
+                { "comment", Comment, Comment != null },
                 { "readConcern", readConcern, readConcern != null }
             };
         }
 
-        private IDisposable BeginOperation() => EventContext.BeginOperation("distinct");
-
-        private ReadCommandOperation<DistinctResult> CreateOperation(OperationContext operationContext, RetryableReadContext context)
+        public override IAsyncCursor<TValue> HandleServerResponse(OperationContext operationContext, CommandExecutorContext context, DistinctResult serverResponse)
         {
-            var command = CreateCommand(operationContext, context.Binding.Session, context.Channel.ConnectionDescription);
-            var serializer = new DistinctResultDeserializer(_valueSerializer);
-
-            return new ReadCommandOperation<DistinctResult>(_collectionNamespace.DatabaseNamespace, command, serializer, _messageEncoderSettings)
-            {
-                RetryRequested = _retryRequested // might be overridden by retryable read context
-            };
+            context.Session.SetSnapshotTimeIfNeeded(serverResponse.AtClusterTime);
+            return new SingleBatchAsyncCursor<TValue>(serverResponse.Values);
         }
 
-        private sealed class DistinctResult
+        internal sealed class DistinctResult
         {
             public BsonTimestamp AtClusterTime;
             public TValue[] Values;
         }
 
-        private sealed class DistinctResultDeserializer : SerializerBase<DistinctResult>
+        internal sealed class DistinctResultDeserializer : SerializerBase<DistinctResult>
         {
             private readonly IBsonSerializer<TValue> _valueSerializer;
 

@@ -15,6 +15,7 @@
 
 using System;
 using MongoDB.Driver.Core.Bindings;
+using MongoDB.Driver.Core.Connections;
 using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 
 namespace MongoDB.Driver.Core.Operations.OperationExecutors
@@ -38,5 +39,7 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
         // TODO: Probably could be replaced with IServer
         public IChannelSourceHandle ChannelSource { get; }
         public MessageEncoderSettings MessageEncoderSettings { get; }
+        public ICoreSession Session => ChannelSource.Session;
+        public ConnectionDescription ConnectionDescription => Channel.ConnectionDescription;
     }
 }

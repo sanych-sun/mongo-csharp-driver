@@ -127,7 +127,7 @@ namespace MongoDB.Driver.Core.Operations
             var subject = new FindOperation<BsonDocument>(_collectionNamespace, BsonDocumentSerializer.Instance, _messageEncoderSettings);
 
             subject.CollectionNamespace.Should().BeSameAs(_collectionNamespace);
-            subject.ResultSerializer.Should().BeSameAs(BsonDocumentSerializer.Instance);
+            subject.ItemSerializer.Should().BeSameAs(BsonDocumentSerializer.Instance);
             subject.MessageEncoderSettings.Should().BeSameAs(_messageEncoderSettings);
 
             subject.AllowDiskUse.Should().NotHaveValue();

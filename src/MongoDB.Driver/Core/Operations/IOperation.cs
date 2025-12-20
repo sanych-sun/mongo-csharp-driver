@@ -18,12 +18,14 @@ using MongoDB.Driver.Core.Bindings;
 
 namespace MongoDB.Driver.Core.Operations
 {
+    // TODO: remove when done with operation refactoring
     internal interface IReadOperation<TResult>
     {
         TResult Execute(OperationContext operationContext, IReadBinding binding);
         Task<TResult> ExecuteAsync(OperationContext operationContext, IReadBinding binding);
     }
 
+    // TODO: remove when done with operation refactoring
     internal interface IWriteOperation<TResult>
     {
         TResult Execute(OperationContext operationContext, IWriteBinding binding);
@@ -32,8 +34,7 @@ namespace MongoDB.Driver.Core.Operations
 
     internal interface IOperation
     {
+        bool RetryRequested { get; }
         string OperationName { get; }
-
-        DatabaseNamespace DatabaseNamespace { get; }
     }
 }

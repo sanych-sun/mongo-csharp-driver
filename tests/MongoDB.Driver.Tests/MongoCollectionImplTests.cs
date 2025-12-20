@@ -1473,7 +1473,7 @@ namespace MongoDB.Driver
 #pragma warning restore 618
             operation.Projection.Should().Be(projectionDocument);
             operation.ReadConcern.Should().Be(_readConcern);
-            operation.ResultSerializer.ValueType.Should().Be(typeof(BsonDocument));
+            operation.ItemSerializer.ValueType.Should().Be(typeof(BsonDocument));
             operation.RetryRequested.Should().BeTrue();
             operation.Skip.Should().Be(options.Skip);
             operation.Sort.Should().Be(sortDocument);
@@ -1561,7 +1561,7 @@ namespace MongoDB.Driver
 #pragma warning restore 618
             operation.Projection.Should().Be(projectionDocument);
             operation.ReadConcern.Should().Be(_readConcern);
-            operation.ResultSerializer.ValueType.Should().Be(typeof(BsonDocument));
+            operation.ItemSerializer.ValueType.Should().Be(typeof(BsonDocument));
             operation.RetryRequested.Should().BeTrue();
             operation.Skip.Should().Be(options.Skip);
             operation.Sort.Should().Be(sortDocument);
@@ -1614,7 +1614,7 @@ namespace MongoDB.Driver
             var operation = call.Operation.Should().BeOfType<FindOperation<BsonDocument>>().Subject;
             operation.Projection.Should().BeNull();
             operation.Let.Should().Be(letDocument);
-            operation.ResultSerializer.Should().BeOfType<BsonDocumentSerializer>();
+            operation.ItemSerializer.Should().BeOfType<BsonDocumentSerializer>();
             operation.ReadConcern.Should().Be(_readConcern);
         }
 

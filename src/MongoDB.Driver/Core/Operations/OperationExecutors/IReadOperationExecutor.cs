@@ -22,14 +22,14 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
     {
         public TResult Execute<TResult, TServerResponse>(
             OperationContext operationContext,
-            IClientSessionHandle session,
+            IClientSession session,
             IReadBindingHandle binding,
-            IReadOperation<TResult, TServerResponse> operation);
+            ReadOperationBase<TResult, TServerResponse> operation);
 
         public Task<TResult> ExecuteAsync<TResult, TServerResponse>(
             OperationContext operationContext,
-            IClientSessionHandle session,
+            IClientSession session,
             IReadBindingHandle binding,
-            IReadOperation<TResult, TServerResponse> operation);
+            ReadOperationBase<TResult, TServerResponse> operation);
     }
 }

@@ -16,15 +16,45 @@
 using System;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
+using MongoDB.Driver.Core.Misc;
 using MongoDB.Driver.Core.Operations.OperationExecutors;
 
-namespace MongoDB.Driver.Core.Operations
+namespace MongoDB.Driver.Core.Operations;
+
+internal abstract class ReadOperationBase<TResult, TServerResponse> : IOperation
 {
-    internal interface IReadOperation<TResult, TServerResponse> : IOperation
+    public DatabaseNamespace DatabaseNamespace { get; }
+
+    protected ReadOperationBase(string operationName, DatabaseNamespace databaseNamespace, IBsonSerializer<TServerResponse> resultSerializer)
     {
-        IBsonSerializer<TServerResponse> ResultSerializer { get; }
-        BsonDocument CreateCommand(CommandExecutorContext context);
-        TResult HandleResult(CommandExecutorContext context, TServerResponse serverResponse);
-        bool TryHandleException(CommandExecutorContext context, Exception exception, out TResult result);
+        DatabaseNamespace = Ensure.IsNotNull(databaseNamespace, nameof(databaseNamespace));
+        OperationName = Ensure.IsNotNullOrEmpty(operationName, nameof(operationName));
+        ResultSerializer = Ensure.IsNotNull(resultSerializer, nameof(resultSerializer));
     }
+
+    public string OperationName { get; }
+
+    public bool RetryRequested { get; init; }
+
+    public IBsonSerializer<TServerResponse> ResultSerializer { get; }
+
+    public abstract BsonDocument CreateCommand(OperationContext operationContext, CommandExecutorContext context);
+
+    public abstract TResult HandleServerResponse(OperationContext operationContext, CommandExecutorContext context, TServerResponse serverResponse);
+
+    public virtual bool TryHandleException(OperationContext operationContext, CommandExecutorContext context, Exception exception, out TResult result)
+    {
+        result = default;
+        return false;
+    }
+}
+
+internal abstract class ReadOperationBase<TResult> : ReadOperationBase<TResult, TResult>
+{
+    protected ReadOperationBase(string operationName, DatabaseNamespace databaseNamespace, IBsonSerializer<TResult> resultSerializer)
+        : base(operationName, databaseNamespace, resultSerializer)
+    {
+    }
+
+    public override TResult HandleServerResponse(OperationContext operationContext, CommandExecutorContext context, TResult serverResponse) => serverResponse;
 }

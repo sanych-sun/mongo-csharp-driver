@@ -14,9 +14,12 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using MongoDB.Bson.IO;
 using MongoDB.Driver.Core.Bindings;
+using MongoDB.Driver.Core.Events;
+using MongoDB.Driver.Core.Servers;
 using MongoDB.Driver.Core.WireProtocol;
 using MongoDB.Driver.Core.WireProtocol.Messages.Encoders;
 
@@ -33,109 +36,206 @@ namespace MongoDB.Driver.Core.Operations.OperationExecutors
 
         public TResult Execute<TResult, TServerResponse>(
             OperationContext operationContext,
-            IClientSessionHandle session,
+            IClientSession session,
             IReadBindingHandle binding,
-            IReadOperation<TResult, TServerResponse> operation)
+            ReadOperationBase<TResult, TServerResponse> operation)
         {
-            using var operationExecutorContext = CreateOperationExecutorContext(operationContext, binding);
+            HashSet<ServerDescription> deprioritizedServers = null;
+            var attempt = 0;
+            Exception originalException = null;
+            Exception lastException;
 
-            var command = operation.CreateCommand(operationExecutorContext);
-
-            try
+            do
             {
-                var response = operationExecutorContext.Channel.Command(
-                    operationContext,
-                    session.WrappedCoreSession,
-                    binding.ReadPreference,
-                    operation.DatabaseNamespace,
-                    command,
-                    null, // commandPayloads
-                    NoOpElementNameValidator.Instance, // commandValidator - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
-                    null, // additionalOptions - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
-                    null, // postWriteAction,
-                    CommandResponseHandling.Return,
-                    operation.ResultSerializer,
-                    MessageEncoderSettings);
+                operationContext.ThrowIfTimedOutOrCanceled();
 
-                return operation.HandleResult(operationExecutorContext, response);
-            }
-            catch (Exception ex) when (operation.TryHandleException(operationExecutorContext, ex, out var result))
-            {
-                return result;
-            }
+                attempt++;
+                using var operationExecutorContext = CreateOperationExecutorContext(operationContext, binding, deprioritizedServers);
+                var server = operationExecutorContext.ChannelSource.ServerDescription;
+                var command = operation.CreateCommand(operationContext, operationExecutorContext);
+
+                try
+                {
+                    using var eventContext = EventContext.BeginOperation(operation.OperationName);
+                    var response = operationExecutorContext.Channel.Command(
+                        operationContext,
+                        session.WrappedCoreSession,
+                        binding.ReadPreference,
+                        operation.DatabaseNamespace,
+                        command,
+                        null, // commandPayloads
+                        NoOpElementNameValidator.Instance, // commandValidator - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
+                        null, // additionalOptions - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
+                        null, // postWriteAction,
+                        CommandResponseHandling.Return,
+                        operation.ResultSerializer,
+                        MessageEncoderSettings);
+
+                    return operation.HandleServerResponse(operationContext, operationExecutorContext, response);
+                }
+                catch (Exception ex)
+                {
+                    if (operation.TryHandleException(operationContext, operationExecutorContext, ex, out var result))
+                    {
+                        return result;
+                    }
+
+                    deprioritizedServers ??= new HashSet<ServerDescription>();
+                    deprioritizedServers.Add(server);
+                    originalException ??= ex;
+                    lastException = ex;
+                }
+
+            } while (RetryableReadHelper.ShouldRetryOperation(operationContext, operation, session, lastException, attempt));
+
+            throw originalException;
         }
 
         public async Task<TResult> ExecuteAsync<TResult, TServerResponse>(
             OperationContext operationContext,
-            IClientSessionHandle session,
+            IClientSession session,
             IReadBindingHandle binding,
-            IReadOperation<TResult, TServerResponse> operation)
+            ReadOperationBase<TResult, TServerResponse> operation)
         {
-            using var operationExecutorContext = await CreateOperationExecutorContextAsync(operationContext, binding).ConfigureAwait(false);
+            HashSet<ServerDescription> deprioritizedServers = null;
+            var attempt = 0;
+            Exception originalException = null;
+            Exception lastException;
 
-            var command = operation.CreateCommand(operationExecutorContext);
-
-            try
+            do
             {
-                var response = await operationExecutorContext.Channel.CommandAsync(
-                    operationContext,
-                    session.WrappedCoreSession,
-                    binding.ReadPreference,
-                    operation.DatabaseNamespace,
-                    command,
-                    null, // commandPayloads
-                    NoOpElementNameValidator.Instance, // commandValidator - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
-                    null, // additionalOptions - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
-                    null, // postWriteAction,
-                    CommandResponseHandling.Return,
-                    operation.ResultSerializer,
-                    MessageEncoderSettings).ConfigureAwait(false);
+                operationContext.ThrowIfTimedOutOrCanceled();
 
-                return operation.HandleResult(operationExecutorContext, response);
-            }
-            catch (Exception ex) when (operation.TryHandleException(operationExecutorContext, ex, out var result))
-            {
-                return result;
-            }
+                attempt++;
+                using var operationExecutorContext = await CreateOperationExecutorContextAsync(operationContext, binding, deprioritizedServers).ConfigureAwait(false);
+                var server = operationExecutorContext.ChannelSource.ServerDescription;
+                var command = operation.CreateCommand(operationContext, operationExecutorContext);
+
+                try
+                {
+                    var response = await operationExecutorContext.Channel.CommandAsync(
+                        operationContext,
+                        session.WrappedCoreSession,
+                        binding.ReadPreference,
+                        operation.DatabaseNamespace,
+                        command,
+                        null, // commandPayloads
+                        NoOpElementNameValidator.Instance, // commandValidator - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
+                        null, // additionalOptions - it seems to be not supported by CommandMessageProtocol, should we remove this at all?
+                        null, // postWriteAction,
+                        CommandResponseHandling.Return,
+                        operation.ResultSerializer,
+                        MessageEncoderSettings).ConfigureAwait(false);
+
+                    return operation.HandleServerResponse(operationContext, operationExecutorContext, response);
+                }
+                catch (Exception ex)
+                {
+                    if (operation.TryHandleException(operationContext, operationExecutorContext, ex, out var result))
+                    {
+                        return result;
+                    }
+
+                    deprioritizedServers ??= new HashSet<ServerDescription>();
+                    deprioritizedServers.Add(server);
+                    originalException ??= ex;
+                    lastException = ex;
+                }
+
+            } while (RetryableReadHelper.ShouldRetryOperation(operationContext, operation, session, lastException, attempt));
+
+            throw originalException;
         }
 
-        private CommandExecutorContext CreateOperationExecutorContext(OperationContext operationContext, IReadBinding binding)
+        private CommandExecutorContext CreateOperationExecutorContext(OperationContext operationContext, IReadBinding binding, HashSet<ServerDescription> deprioritizedServers)
         {
             IChannelSourceHandle channelSource = null;
             IChannelHandle channel = null;
 
-            try
+            var attempt = 1;
+            while (true)
             {
-                channelSource = binding.GetReadChannelSource(operationContext);
-                channel = channelSource.GetChannel(operationContext);
-                return new CommandExecutorContext(channel, channelSource, MessageEncoderSettings);
-            }
-            catch
-            {
-                channelSource?.Dispose();
-                channel?.Dispose();
-                throw;
+                try
+                {
+                    operationContext.ThrowIfTimedOutOrCanceled();
+                    channelSource = binding.GetReadChannelSource(operationContext, deprioritizedServers);
+                    channel = channelSource.GetChannel(operationContext);
+                }
+                catch (Exception ex)
+                {
+                    channelSource?.Dispose();
+                    channel?.Dispose();
+
+                    if (RetryableReadHelper.ShouldConnectionAcquireBeRetried(operationContext, ex, attempt))
+                    {
+                        attempt++;
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
             }
         }
 
-        private async Task<CommandExecutorContext> CreateOperationExecutorContextAsync(OperationContext operationContext, IReadBinding binding)
+        private async Task<CommandExecutorContext> CreateOperationExecutorContextAsync(OperationContext operationContext, IReadBinding binding, HashSet<ServerDescription> deprioritizedServers)
         {
             IChannelSourceHandle channelSource = null;
             IChannelHandle channel = null;
 
-            try
+            var attempt = 1;
+            while (true)
             {
-                channelSource = await binding.GetReadChannelSourceAsync(operationContext).ConfigureAwait(false);
-                channel = await channelSource.GetChannelAsync(operationContext).ConfigureAwait(false);
-                return new CommandExecutorContext(channel, channelSource, MessageEncoderSettings);
+                try
+                {
+                    operationContext.ThrowIfTimedOutOrCanceled();
+                    channelSource = await binding.GetReadChannelSourceAsync(operationContext, deprioritizedServers).ConfigureAwait(false);
+                    channel = await channelSource.GetChannelAsync(operationContext).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    channelSource?.Dispose();
+                    channel?.Dispose();
+
+                    if (RetryableReadHelper.ShouldConnectionAcquireBeRetried(operationContext, ex, attempt))
+                    {
+                        attempt++;
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
             }
-            catch
+        }
+
+        private static class RetryableReadHelper
+        {
+            public static bool ShouldConnectionAcquireBeRetried(OperationContext operationContext, Exception exception, int attempt)
             {
-                channelSource?.Dispose();
-                channel?.Dispose();
-                throw;
+                var innerException = exception is MongoAuthenticationException mongoAuthenticationException ? mongoAuthenticationException.InnerException : exception;
+                return ShouldRetryOperation(operationContext, innerException, attempt);
+            }
+
+            public static bool ShouldRetryOperation(OperationContext operationContext, IOperation operation, IClientSession session, Exception exception, int attempt)
+            {
+                if (!operation.RetryRequested || session.IsInTransaction)
+                {
+                    return false;
+                }
+
+                return ShouldRetryOperation(operationContext, exception, attempt);
+            }
+
+            private static bool ShouldRetryOperation(OperationContext operationContext, Exception exception, int attempt)
+            {
+                if (!RetryabilityHelper.IsRetryableReadException(exception))
+                {
+                    return false;
+                }
+
+                return operationContext.IsRootContextTimeoutConfigured() || attempt < 2;
             }
         }
     }
 }
-
