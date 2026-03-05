@@ -35,6 +35,7 @@ namespace MongoDB.Bson.Tests.Serialization.Conventions
             public E? NE { get; set; }
             public E[] ArrayEnum { get; set; }
             public E[][] ArrayOfArrayEnum { get; set; }
+            public List<E> ListOfEnum { get; set; }
             public Dictionary<string, E> DictionaryEnum { get; set; }
             public Dictionary<string, E[]> NestedDictionaryEnum { get; set; }
             public Dictionary<E, string> DictionaryKeyEnum { get; set; }
@@ -42,6 +43,28 @@ namespace MongoDB.Bson.Tests.Serialization.Conventions
             public int NI { get; set; }
             public int[] ArrayInt { get; set; }
             public C RecursiveProp { get; set; }
+            public C[] RecursivePropArray { get; set; }
+            public Dictionary<string,C> RecursivePropDictionary { get; set; }
+            // public Dictionary<E, C> RecursiveDictionary { get; set; } - this is not supported.
+            public D RecursiveDerivedProp { get; set; }
+            public D[] RecursiveDerivedPropArray { get; set; }
+            public Dictionary<string,D> RecursiveDerivedPropDictionary { get; set; }
+        }
+
+        public class D
+        {
+            public C C { get; set; }
+        }
+
+        [Fact]
+        public void Convention_should_work_with_recursive_type_when_top_level_is_false()
+        {
+            var pack = new ConventionPack { new EnumRepresentationConvention(BsonType.String, topLevelOnly: false) };
+            ConventionRegistry.Register("enumRecursive", pack, t => t == typeof(C));
+
+            _ = new BsonClassMap<C>(cm => cm.AutoMap()).Freeze();
+
+            ConventionRegistry.Remove("enumRecursive");
         }
 
         [Theory]
@@ -82,6 +105,22 @@ namespace MongoDB.Bson.Tests.Serialization.Conventions
         {
             var subject = new EnumRepresentationConvention(representation, false);
             var memberMap = CreateMemberMap(c => c.ArrayEnum);
+
+            subject.Apply(memberMap);
+
+            var serializer = (IChildSerializerConfigurable)memberMap.GetSerializer();
+            var childSerializer = (EnumSerializer<E>)serializer.ChildSerializer;
+            childSerializer.Representation.Should().Be(representation);
+        }
+
+        [Theory]
+        [InlineData(BsonType.Int32)]
+        [InlineData(BsonType.Int64)]
+        [InlineData(BsonType.String)]
+        public void Apply_should_configure_serializer_when_member_is_an_enum_list(BsonType representation)
+        {
+            var subject = new EnumRepresentationConvention(representation, false);
+            var memberMap = CreateMemberMap(c => c.ListOfEnum);
 
             subject.Apply(memberMap);
 
