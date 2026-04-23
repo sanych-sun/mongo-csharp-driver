@@ -18,35 +18,26 @@ using FluentAssertions;
 using MongoDB.Bson;
 using MongoDB.TestHelpers.XunitExtensions;
 using MongoDB.Driver.Core.Misc;
-using MongoDB.Driver.Core.TestHelpers.XunitExtensions;
 using Xunit;
 
 namespace MongoDB.Driver.Tests
 {
-    [Trait("Category", "Integration")]
-    public class ListDatabasesTests
+    public class ListDatabasesTests : IntegrationTest<ListDatabasesTests.DatabaseFixture>
     {
-        private string _databaseName = $"authorizedDatabases{Guid.NewGuid()}";
-        private string _password = "authorizedDatabases";
-        private string _roleName = $"listDatabases{Guid.NewGuid()}";
-        private string _userName = $"authorizedDatabases{Guid.NewGuid()}";
+        public ListDatabasesTests(DatabaseFixture fixture)
+            : base(fixture, server => server.Supports(Feature.ListDatabasesAuthorizedDatabases).Authentication(true))
+        {
+        }
 
         [Theory]
         [ParameterAttributeData]
         public void Execute_should_return_the_expected_result_when_AuthorizedDatabases_is_used(
             [Values(null, false, true)] bool? authorizedDatabases)
         {
-            RequireServer.Check().Supports(Feature.ListDatabasesAuthorizedDatabases).Authentication(true);
+            var settings = Fixture.Client.Settings.Clone();
+            settings.Credential = MongoCredential.FromComponents(mechanism: null, source: null, username: Fixture.UserName, password: Fixture.Password);
 
-            var setupClient = DriverTestConfiguration.Client;
-            CreateListDatabasesRole(setupClient, _roleName);
-            CreateListDatabasesUser(setupClient, _userName, _password, _databaseName, _roleName);
-            setupClient.GetDatabase(_databaseName).GetCollection<BsonDocument>("test").InsertOne(new BsonDocument());
-
-            var settings = DriverTestConfiguration.Client.Settings.Clone();
-            settings.Credential = MongoCredential.FromComponents(mechanism: null, source: null, username: _userName, password: _password);
-            var testClient = new MongoClient(settings);
-
+            using var testClient = new MongoClient(settings);
             var options = new ListDatabasesOptions
             {
                 AuthorizedDatabases = authorizedDatabases,
@@ -54,9 +45,9 @@ namespace MongoDB.Driver.Tests
             };
             var result = testClient.ListDatabases(options).ToList();
 
-            if (authorizedDatabases.HasValue && authorizedDatabases.Value)
+            if (authorizedDatabases == true)
             {
-                result.Should().BeEquivalentTo(new BsonArray { new BsonDocument { { "name", _databaseName } } });
+                result.Should().BeEquivalentTo(new BsonArray { new BsonDocument { { "name", Fixture.DatabaseName } } });
             }
             else
             {
@@ -64,37 +55,58 @@ namespace MongoDB.Driver.Tests
             }
         }
 
-        private void CreateListDatabasesRole(IMongoClient client, string roleName)
+        public class DatabaseFixture : MongoDatabaseFixture
         {
-            var privileges = new BsonArray
-            {
-                new BsonDocument { { "resource", new BsonDocument { { "cluster", true } } }, { "actions", new BsonArray { "listDatabases" } } },
-            };
-            var command = new BsonDocument
-            {
-                { "createRole", roleName },
-                { "privileges", privileges },
-                { "roles", new BsonArray() },
-            };
+            public string DatabaseName { get; } = $"authorizedDatabases_{Guid.NewGuid()}";
+            public string UserName => DatabaseName;
+            public string Password => "authorizedDatabases";
 
-            client.GetDatabase("admin").RunCommand<BsonDocument>(command);
-        }
+            protected override IMongoDatabase CreateDatabase()
+                => Client.GetDatabase(DatabaseName);
 
-        private void CreateListDatabasesUser(IMongoClient client, string username, string password, string databaseName, string roleName)
-        {
-            var roles = new BsonArray
+            protected override void InitializeFixture()
             {
-                new BsonDocument { { "role", "read" }, { "db", databaseName } },
-                new BsonDocument { { "role", roleName }, { "db", "admin" } },
-            };
-            var command = new BsonDocument
-            {
-                { "createUser", username },
-                { "pwd", password },
-                { "roles", roles },
-            };
+                base.InitializeFixture();
 
-            client.GetDatabase("admin").RunCommand<BsonDocument>(command);
+                var roleName = $"listDatabases_{DatabaseName}";
+                CreateListDatabasesRole(roleName);
+                CreateListDatabasesUser(UserName, Password, DatabaseName, roleName);
+
+                Client.GetDatabase(DatabaseName).GetCollection<BsonDocument>("test").InsertOne(new BsonDocument());
+            }
+
+            private void CreateListDatabasesRole(string roleName)
+            {
+                var privileges = new BsonArray
+                {
+                    new BsonDocument { { "resource", new BsonDocument { { "cluster", true } } }, { "actions", new BsonArray { "listDatabases" } } },
+                };
+                var command = new BsonDocument
+                {
+                    { "createRole", roleName },
+                    { "privileges", privileges },
+                    { "roles", new BsonArray() },
+                };
+
+                Client.GetDatabase("admin").RunCommand<BsonDocument>(command);
+            }
+
+            private void CreateListDatabasesUser(string username, string password, string databaseName, string roleName)
+            {
+                var roles = new BsonArray
+                {
+                    new BsonDocument { { "role", "read" }, { "db", databaseName } },
+                    new BsonDocument { { "role", roleName }, { "db", "admin" } },
+                };
+                var command = new BsonDocument
+                {
+                    { "createUser", username },
+                    { "pwd", password },
+                    { "roles", roles },
+                };
+
+                Client.GetDatabase("admin").RunCommand<BsonDocument>(command);
+            }
         }
     }
 }

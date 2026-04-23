@@ -20,11 +20,8 @@ namespace MongoDB.Driver.Tests
 {
     public class MongoDatabaseFixture : IDisposable
     {
-        private static readonly string __timeStamp = DateTime.Now.ToString("MMddHHmm");
-
         private readonly Lazy<IMongoClient> _client;
         private readonly Lazy<IMongoDatabase> _database;
-        private readonly string _databaseName = $"CSTests{__timeStamp}";
         private bool _fixtureInialized;
         private readonly HashSet<string> _usedCollections = new();
 
@@ -67,7 +64,7 @@ namespace MongoDB.Driver.Tests
 
         protected virtual IMongoDatabase CreateDatabase()
         {
-            return Client.GetDatabase(_databaseName);
+            return Client.GetDatabase($"CSTests{DateTime.Now.ToString("MMddHHmm")}");
         }
 
         internal void BeforeTestCase()
