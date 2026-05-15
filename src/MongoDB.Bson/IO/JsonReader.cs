@@ -932,6 +932,32 @@ namespace MongoDB.Bson.IO
             base.Dispose(disposing);
         }
 
+        /// <summary>
+        /// Scans the next token from the buffer. Override in derived classes to intercept token scanning.
+        /// </summary>
+        /// <returns>The next token.</returns>
+        protected virtual JsonToken ScanNextToken() =>
+            JsonScanner.GetNextToken(_buffer);
+
+        /// <summary>
+        /// Advances past any leading whitespace, then peeks at the next non-whitespace character.
+        /// If the character satisfies the predicate, unreads it and returns true (base can scan normally).
+        /// If the character does not satisfy the predicate, consumes it and returns false.
+        /// Returns true at end of input (letting base handle EOF).
+        /// </summary>
+        protected bool TryConsumeNextChar(Func<char, bool> predicate)
+        {
+            int c = _buffer.Read();
+
+            if (c != -1 && predicate((char)c))
+            {
+                return true;
+            }
+
+            _buffer.UnRead(c);
+            return false;
+        }
+
         // private methods
         private string FormatInvalidTokenMessage(JsonToken token)
         {
@@ -2157,7 +2183,7 @@ namespace MongoDB.Bson.IO
             }
             else
             {
-                return JsonScanner.GetNextToken(_buffer);
+                return ScanNextToken();
             }
         }
 

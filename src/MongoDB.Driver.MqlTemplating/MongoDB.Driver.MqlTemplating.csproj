@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyTitle>MongoDB.Driver.MqlTemplating</AssemblyTitle>
+    <Product>MongoDB.Driver.MqlTemplating</Product>
+    <PackageId>MongoDB.Driver.MqlTemplating</PackageId>
+    <Description>MQL templating support for the MongoDB C# driver.</Description>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MongoDB.Bson\MongoDB.Bson.csproj" />
+    <ProjectReference Include="..\MongoDB.Driver\MongoDB.Driver.csproj" />
+  </ItemGroup>
+
+</Project>

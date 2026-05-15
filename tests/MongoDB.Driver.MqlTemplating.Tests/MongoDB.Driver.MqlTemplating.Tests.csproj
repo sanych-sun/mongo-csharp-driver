@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\BuildProps\Tests.Build.props" />
+
+  <PropertyGroup>
+    <AssemblyTitle>MongoDB.Driver.MqlTemplating.Tests</AssemblyTitle>
+    <Product>MongoDB.Driver.MqlTemplating.Tests</Product>
+    <Description>MongoDB.Driver.MqlTemplating tests.</Description>
+    <CodeAnalysisRuleSet>..\..\MongoDBLegacyTest.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <NoWarn>
+      CA1707;
+      1701;1702; <!--https://github.com/dotnet/roslyn/issues/19640-->
+      xUnit1013; <!--Public method should be marked as test-->
+      xUnit2000; <!--Constants and literals should be the expected argument-->
+      xUnit2003; <!--Do not use equality check to test for null value-->
+      xUnit2004; <!--Do not use equality check to test for boolean conditions-->
+    </NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.4.0" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.13.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MongoDB.Driver.MqlTemplating\MongoDB.Driver.MqlTemplating.csproj" />
+    <ProjectReference Include="..\..\src\MongoDB.Driver\MongoDB.Driver.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
