@@ -42,10 +42,6 @@ public sealed class MongoClientBuilder
     // make sure we moved all knobs to the new builders infrastructure.
 
     // TODO: static property MongoClientSettings.Extensions probably need to be moved into the MongoClientBuilder.
-    // Note this is more than a relocation: it is public static readonly, so registrations into its three
-    // registries (SaslMechanisms, KmsProviders, AutoEncryptionProvider) are process-global today. Per-client
-    // registries mean threading resolution through to connect/encrypt time, and the builder would expose
-    // registration methods rather than a property, since the manager itself is never assigned.
 
     // TODO: ClusterSource property is not implemented yet, need to decide how and where it goes. In scope of
     // MongoClient disposability work. It is internal on MongoClientSettings, so it is not part of the public
@@ -79,15 +75,16 @@ public sealed class MongoClientBuilder
     /// <returns>A new <see cref="MongoClientBuilder"/>.</returns>
     public static MongoClientBuilder FromConnectionString(ConnectionString connectionString)
     {
-        throw new NotImplementedException("Implement mapping from the ConnectionString instance.");
+        // TODO: Discuss if it should be ConnectionString or MongoUrl here, and deprecate another.
+        throw new NotImplementedException("Implement mapping from the connection string.");
     }
 
     /// <summary>
     /// Configures serialization.
     /// </summary>
     /// <returns>The same <see cref="MongoClientBuilder"/> instance so that calls can be chained.</returns>
-    // TODO: should have SerializerBuilder parameter
-    // TODO: WriteEncoding and ReadEncoding should we either dropped or moved under the serialization builder
+    // TODO: should have SerializationBuilder parameter
+    // TODO: WriteEncoding and ReadEncoding: should we either dropped them or moved under the serialization builder
     public MongoClientBuilder ConfigureSerialization()
     {
         return this;
@@ -225,6 +222,20 @@ public sealed class MongoClientBuilder
     {
         _credential = credential;
         return this;
+    }
+
+    /// <summary>
+    /// Builds a <see cref="IMongoClient"/> from the configuration accumulated on this builder.
+    /// </summary>
+    /// <remarks>
+    /// The builder is not consumed by this call; it can be further configured and used to build additional clients.
+    /// Each call returns a new client, and the caller is responsible for disposing it.
+    /// </remarks>
+    /// <returns>A new <see cref="IMongoClient"/>.</returns>
+    public IMongoClient Build()
+    {
+        // TODO: implement constructing of the MongoClient
+        return null;
     }
 }
 
